@@ -1,0 +1,138 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Profile {
+  id                    String   @id @default(cuid())
+  city                  String   @default("宁波")
+  timezone              String   @default("Asia/Shanghai")
+  defaultOriginName     String   @default("家")
+  defaultOriginAddress  String   @default("金都嘉园52号")
+  defaultOriginLngLat   String   @default("121.5230315924,29.8652491273")
+  insideVenueMinutes    Int      @default(12)
+  waitAndFrictionMinutes Int     @default(8)
+  notifyThresholdMinutes Int     @default(5)
+  routePreferenceJson   String   @default("{}")
+  updatedAt             DateTime @updatedAt
+  createdAt             DateTime @default(now())
+}
+
+model Trip {
+  id                       String   @id @default(cuid())
+  destinationName          String
+  destinationAddress       String?
+  destinationLngLat        String
+  originName               String
+  originLngLat             String
+  city                     String   @default("宁波")
+  timezone                 String   @default("Asia/Shanghai")
+  arriveByLocal            String
+  latestDepartLocal        String?
+  estimatedArriveLocal     String?
+  totalMinutes             Int?
+  routeType                String   @default("mixed")
+  chosenPlanKey            String?
+  status                   String   @default("active")
+  riskLevel                String   @default("onTime")
+  mapImageUrl              String?
+  bufferJson               String   @default("{}")
+  notificationJson         String   @default("{}")
+  deletedAt                DateTime?
+  updatedAt                DateTime @updatedAt
+  createdAt                DateTime @default(now())
+  routeOptions             TripRouteOption[]
+  segments                 TripSegment[]
+  reminderJobs             ReminderJob[]
+  notificationLogs         NotificationLog[]
+}
+
+model TripRouteOption {
+  id             String   @id @default(cuid())
+  tripId         String
+  planKey        String
+  title          String
+  routeType      String
+  baseMinutes    Int
+  bufferMinutes  Int
+  totalMinutes   Int
+  latestDepartLocal String
+  isChosen       Boolean  @default(false)
+  sortOrder      Int      @default(0)
+  rawJson        String   @default("{}")
+  trip           Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([tripId])
+}
+
+model TripSegment {
+  id          String @id @default(cuid())
+  tripId      String
+  mode        String
+  title       String
+  detail      String
+  minutes     Int
+  sortOrder   Int
+  trip        Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([tripId])
+}
+
+model ReminderJob {
+  id             String    @id @default(cuid())
+  tripId         String
+  kind           String
+  scheduledAt    DateTime
+  offsetMinutes  Int
+  status         String    @default("pending")
+  lastError      String?
+  ranAt          DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  trip           Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([status, scheduledAt])
+  @@index([tripId])
+}
+
+model Memory {
+  id              String   @id @default(cuid())
+  type            String
+  status          String   @default("confirmed")
+  label           String
+  valueJson       String   @default("{}")
+  sourceText      String?
+  confidence      Float?
+  deletedAt       DateTime?
+  updatedAt       DateTime @updatedAt
+  createdAt       DateTime @default(now())
+
+  @@index([type, status])
+}
+
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
+
+model NotificationLog {
+  id        String   @id @default(cuid())
+  tripId    String?
+  channel   String
+  kind      String
+  dedupeKey String?
+  status    String
+  message   String
+  error     String?
+  createdAt DateTime @default(now())
+  trip      Trip?    @relation(fields: [tripId], references: [id], onDelete: SetNull)
+
+  @@index([dedupeKey])
+  @@index([tripId])
+}
