@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { apiOk } from "@/lib/http/api";
 import { withAuth } from "@/lib/auth/api-guard";
@@ -13,19 +14,26 @@ export async function GET() {
 export async function PATCH(request: Request) {
   return withAuth(async () => {
     const body = await request.json();
+    const data: Prisma.ProfileUpdateInput = {
+      city: String(body.city || ""),
+      timezone: String(body.timezone || ""),
+      defaultOriginName: String(body.defaultOriginName || ""),
+      defaultOriginAddress: String(body.defaultOriginAddress || ""),
+      defaultOriginLngLat: String(body.defaultOriginLngLat || ""),
+      routePreferenceJson: body.routePreference ? JSON.stringify(body.routePreference) : undefined
+    };
+    if (body.insideVenueMinutes !== undefined) {
+      data.insideVenueMinutes = Number(body.insideVenueMinutes);
+    }
+    if (body.waitAndFrictionMinutes !== undefined) {
+      data.waitAndFrictionMinutes = Number(body.waitAndFrictionMinutes);
+    }
+    if (body.notifyThresholdMinutes !== undefined) {
+      data.notifyThresholdMinutes = Number(body.notifyThresholdMinutes);
+    }
     const profile = await prisma.profile.update({
       where: { id: "default" },
-      data: {
-        city: body.city,
-        timezone: body.timezone,
-        defaultOriginName: body.defaultOriginName,
-        defaultOriginAddress: body.defaultOriginAddress,
-        defaultOriginLngLat: body.defaultOriginLngLat,
-        insideVenueMinutes: Number(body.insideVenueMinutes ?? undefined),
-        waitAndFrictionMinutes: Number(body.waitAndFrictionMinutes ?? undefined),
-        notifyThresholdMinutes: Number(body.notifyThresholdMinutes ?? undefined),
-        routePreferenceJson: body.routePreference ? JSON.stringify(body.routePreference) : undefined
-      }
+      data
     });
     return apiOk(profile);
   });

@@ -67,6 +67,11 @@ function TripDetailContent() {
     );
   }
 
+  const routeOptions = trip.routeOptions || [];
+  const segments = trip.segments || [];
+  const reminderJobs = trip.reminderJobs || [];
+  const chosenRoute = routeOptions.find((item) => item.isChosen);
+
   return (
     <AppShell showBottomNav={false}>
       <header className="flex items-center justify-between bg-[var(--background)] px-4 pb-2 pt-10">
@@ -96,7 +101,7 @@ function TripDetailContent() {
           <div className="flex flex-[1.5] flex-col gap-4">
             <div>
               <p className="text-sm text-blue-900">已选方案</p>
-              <p className="mt-1 text-lg font-extrabold">{trip.routeOptions.find((item) => item.isChosen)?.title || "最快路线"}</p>
+              <p className="mt-1 text-lg font-extrabold">{chosenRoute?.title || "最快路线"}</p>
               <p className="mt-2 text-sm leading-6 text-blue-900">
                 建议出发时段: {trip.latestDepartLocal?.slice(11) || "--:--"} · 路程约 {trip.totalMinutes || 0} 分钟
               </p>
@@ -119,8 +124,8 @@ function TripDetailContent() {
       <section className="px-5 py-4">
         <h2 className="mb-4 text-2xl font-extrabold">行程拆解</h2>
         <div className="grid grid-cols-[40px_1fr] gap-x-3">
-          {trip.segments.map((segment, index) => (
-            <TimelineItem key={segment.id || index} segment={segment} isLast={index === trip.segments.length - 1} />
+          {segments.map((segment, index) => (
+            <TimelineItem key={segment.id || index} segment={segment} isLast={index === segments.length - 1} />
           ))}
         </div>
       </section>
@@ -137,7 +142,7 @@ function TripDetailContent() {
         <div>
           <h2 className="mb-4 text-2xl font-extrabold">提醒计划</h2>
           <GlassCard className="divide-y divide-[var(--outline-variant)]/40 rounded-xl bg-white/90 p-4">
-            {trip.reminderJobs.slice(-3).map((job) => (
+            {reminderJobs.slice(-3).map((job) => (
               <div key={job.id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
                 <div className="flex items-center gap-3">
                   <Icon name="notifications_active" className="text-[var(--primary)]" />
@@ -160,14 +165,9 @@ function TripDetailContent() {
           {busy === "复算" ? "复算中" : "手动复算"}
           <Icon name="refresh" className="text-[20px]" />
         </button>
-        <div className="grid grid-cols-2 gap-3">
-          <button className="rounded-full bg-[var(--secondary-container)] py-4 font-extrabold text-[var(--on-secondary-container)]">
-            调整缓冲
-          </button>
-          <button className="rounded-full bg-[var(--secondary-container)] py-4 font-extrabold text-[var(--on-secondary-container)]">
-            更改路线
-          </button>
-        </div>
+        <button className="w-full rounded-full bg-[var(--secondary-container)] py-4 font-extrabold text-[var(--on-secondary-container)]">
+          更改路线
+        </button>
         <button
           onClick={() => action(`/api/trips/${trip.id}/cancel`, "停止")}
           disabled={Boolean(busy)}

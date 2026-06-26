@@ -13,9 +13,6 @@ type Profile = {
   defaultOriginName: string;
   defaultOriginAddress: string;
   defaultOriginLngLat: string;
-  insideVenueMinutes: number;
-  waitAndFrictionMinutes: number;
-  notifyThresholdMinutes: number;
 };
 
 type Memory = {
@@ -60,7 +57,13 @@ export default function SettingsPage() {
     if (!profile) return;
     const saved = await apiFetch<Profile>("/api/profile", {
       method: "PATCH",
-      body: JSON.stringify(profile)
+      body: JSON.stringify({
+        city: profile.city,
+        timezone: profile.timezone,
+        defaultOriginName: profile.defaultOriginName,
+        defaultOriginAddress: profile.defaultOriginAddress,
+        defaultOriginLngLat: profile.defaultOriginLngLat
+      })
     });
     setProfile(saved);
     setMessage("基础资料已保存");
@@ -135,23 +138,6 @@ export default function SettingsPage() {
                 value={profile.defaultOriginLngLat}
                 onChange={(value) => setProfile({ ...profile, defaultOriginLngLat: value })}
               />
-              <div className="grid grid-cols-3 gap-3">
-                <NumberInput
-                  label="场内"
-                  value={profile.insideVenueMinutes}
-                  onChange={(value) => setProfile({ ...profile, insideVenueMinutes: value })}
-                />
-                <NumberInput
-                  label="换乘"
-                  value={profile.waitAndFrictionMinutes}
-                  onChange={(value) => setProfile({ ...profile, waitAndFrictionMinutes: value })}
-                />
-                <NumberInput
-                  label="阈值"
-                  value={profile.notifyThresholdMinutes}
-                  onChange={(value) => setProfile({ ...profile, notifyThresholdMinutes: value })}
-                />
-              </div>
               <button className="rounded-full bg-[var(--primary-container)] px-5 py-3 font-bold text-white">保存资料</button>
             </form>
           </GlassCard>
@@ -267,20 +253,6 @@ function SettingsInput({ label, value, onChange }: { label: string; value: strin
       <input
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-1 w-full rounded-xl border-0 bg-white/80 px-4 py-3 outline-none"
-      />
-    </label>
-  );
-}
-
-function NumberInput({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
-  return (
-    <label className="block">
-      <span className="text-sm font-semibold text-[var(--on-surface-variant)]">{label}</span>
-      <input
-        value={value}
-        type="number"
-        onChange={(event) => onChange(Number(event.target.value))}
         className="mt-1 w-full rounded-xl border-0 bg-white/80 px-4 py-3 outline-none"
       />
     </label>

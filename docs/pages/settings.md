@@ -8,7 +8,7 @@
 
 - 查看和修改网页登录密码。
 - 设置默认城市、时区和默认起点。
-- 管理 Agent 记忆：地点、别名、路线偏好、缓冲偏好、通知偏好和待确认记忆。
+- 管理 Agent 记忆：地点、别名、路线偏好、通知偏好和待确认记忆。
 - 查看 Telegram、邮件、高德和模型配置状态。
 - 发送测试 Telegram 或邮件。
 - 退出登录。
@@ -57,17 +57,14 @@
    - 避免打车。
    - 天气不好时自动降低骑行优先级。
 
-7. 缓冲偏好
-   - 进商场/场馆缓冲。
-   - 换乘和等车缓冲。
-   - 停车/还车缓冲。
-   - 安检/进园区缓冲。
+7. 自动时间策略
+   - 场内、换乘、停车、还车和通知变化阈值不提供用户手动设置。
+   - 系统根据路线数据、天气和默认策略自动计算缓冲、最晚出发时间和提醒触发节奏。
 
 8. 通知设置
    - Telegram 启用状态。
    - 邮件启用状态。
    - 提醒节奏说明。
-   - 变化通知阈值。
    - 测试 Telegram。
    - 测试邮件。
 
@@ -87,7 +84,6 @@
 - `PendingMemorySection`
 - `PlaceMemorySection`
 - `RoutePreferenceSection`
-- `BufferPreferenceSection`
 - `NotificationSection`
 - `SystemStatusSection`
 - `MemoryEditorSheet`
@@ -115,8 +111,7 @@
 - `place`：地点，保存名称、别名、地址、城市、经纬度。
 - `alias`：短语映射，例如“学校”对应某个 POI。
 - `route_preference`：路线偏好，例如偏好地铁、少走路、允许共享单车。
-- `buffer_preference`：缓冲偏好，例如进商场 10 分钟。
-- `notification_preference`：通知偏好，例如 Telegram+邮件、变化阈值 5 分钟。
+- `notification_preference`：通知偏好，例如 Telegram+邮件。
 - `general_note`：其他出行习惯，必须可读、可编辑、可删除。
 
 ## 核心交互
@@ -135,11 +130,11 @@
 
 ### `GET /api/profile`
 
-返回默认城市、时区、默认起点和用户基础偏好。
+返回默认城市、时区、默认起点和后端自动时间策略字段。分钟类策略字段只用于后端计算，不在设置页展示为可编辑项。
 
 ### `PATCH /api/profile`
 
-保存基础资料。
+保存基础资料。未传入分钟类策略字段时，后端不得覆盖现有自动时间策略。
 
 ### `GET /api/memories`
 
