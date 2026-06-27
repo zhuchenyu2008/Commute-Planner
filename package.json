@@ -1,0 +1,51 @@
+{
+  "name": "commute-planner",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/next-cli.mjs dev",
+    "build": "node scripts/next-cli.mjs build",
+    "start": "node scripts/next-cli.mjs start",
+    "lint": "node scripts/next-cli.mjs lint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:seed": "tsx prisma/seed.ts",
+    "scheduler:tick": "tsx scripts/scheduler.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.10.0",
+    "bcryptjs": "^3.0.2",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "date-fns-tz": "^3.2.0",
+    "lucide-react": "^0.468.0",
+    "next": "^15.0.0",
+    "nodemailer": "^6.9.16",
+    "openai": "^4.77.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@next/swc-wasm-nodejs": "^15.5.19",
+    "@playwright/test": "^1.49.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.10.2",
+    "@types/nodemailer": "^6.4.17",
+    "@types/react": "^19.0.1",
+    "@types/react-dom": "^19.0.2",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "prisma": "^6.10.0",
+    "tailwindcss": "^3.4.17",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

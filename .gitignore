@@ -3,6 +3,7 @@
 .env
 .superpowers/
 node_modules/
+.npm-cache/
 .next/
 data/
 .worktrees/
