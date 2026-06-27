@@ -1,4 +1,8 @@
 /原始skill
 /前端样板和规范
-
+.env
+.superpowers/
+node_modules/
+.next/
+data/
 
