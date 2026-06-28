@@ -17,6 +17,8 @@
 7. Agent 通过线路更新工具修改当前 trip、stops、legs、route candidates、segments、buffers、reminders、monitoring status，或创建记忆候选。
 8. 用户回到详情页时看到更新后的标题、路线、提醒和监控状态。
 
+确认后的记忆必须在每次 Agent run 中生效。它不只是记忆页里的展示数据，也不能只依赖 Agent 主动调用工具碰运气读取；运行开始时要主动把已确认记忆注入 Agent 上下文，并明确告诉 Agent 这些是用户确认过的长期偏好、常用地点或习惯。
+
 ## Agent 工具集
 
 续聊时暴露两类工具，和首次规划保持同样的“工具由 Agent 主动选择，应用层不硬编码决策”的原则。
@@ -53,6 +55,7 @@
 
 - 每次用户追加消息后，session 进入 `running`。
 - runner 从数据库读取历史消息，追加系统提示和当前 trip 上下文。
+- runner 同时读取当前用户已确认的 `Memory`，将其作为独立上下文消息传给 Agent，并说明这些记忆应优先作为用户偏好和常用地点证据使用。
 - Agent 可以反复调用所有工具，直到它完成当前用户请求并返回自然语言总结。
 - 不设置工具调用轮数上限。
 - 超时后记录失败消息，保留已完成的工具日志。
@@ -84,6 +87,8 @@ Agent 保存或更新单段行程标题时，统一使用：
 - 忽略：把候选状态改为 `ignored`。
 
 接口建议为 `POST /api/memory-candidates/[candidateId]/confirm` 和 `POST /api/memory-candidates/[candidateId]/ignore`。两者都要校验当前用户拥有该候选。
+
+确认后的 `Memory` 必须参与后续每一次首次规划和续聊。实现上需要有统一的记忆上下文构造函数，例如读取最近或最相关的已确认记忆，序列化为 Agent 可读的结构化文本，并在 `runPlanningSession` 与续聊 runner 中共同使用。`read_memories` 工具仍保留，供 Agent 在运行中按需刷新或查看更完整列表。
 
 ## 监控状态
 
@@ -153,6 +158,7 @@ Agent 保存或更新单段行程标题时，统一使用：
 - 续聊 runner 暴露读取、路线查询、记忆候选和线路更新工具，且不设置轮数上限。
 - `update/replace` 工具能更新当前 trip 标题为 `起点-终点`，并替换路线结构。
 - 记忆候选确认会创建 Memory 并关闭 candidate；忽略只关闭 candidate。
+- 确认后的 Memory 会被注入后续首次规划和续聊的 Agent 消息上下文，不依赖 Agent 先调用 `read_memories`。
 - 取消监控会取消 trip、legs 和 scheduled reminders。
 - 设置 API 不再从 env 返回默认出发点；未设置出发点时规划入口返回引导错误。
 - 设置表单不渲染坐标输入框，使用候选搜索选择保存隐藏坐标。
