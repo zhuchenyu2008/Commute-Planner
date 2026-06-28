@@ -1,5 +1,15 @@
 import { prisma } from "@/lib/db";
 
+const MAX_MEMORY_VALUE_LENGTH = 500;
+
+function formatMemoryValue(valueJson: string) {
+  if (valueJson.length <= MAX_MEMORY_VALUE_LENGTH) {
+    return valueJson;
+  }
+
+  return `${valueJson.slice(0, MAX_MEMORY_VALUE_LENGTH)}...`;
+}
+
 export async function buildConfirmedMemoryContext(userId: string) {
   const memories = await prisma.memory.findMany({
     where: { userId },
@@ -12,7 +22,9 @@ export async function buildConfirmedMemoryContext(userId: string) {
   }
 
   const lines = memories.map((memory, index) => {
-    return `${index + 1}. [${memory.kind}] ${memory.label}: ${memory.valueJson}`;
+    return `${index + 1}. [${memory.kind}] ${memory.label}: ${formatMemoryValue(
+      memory.valueJson
+    )}`;
   });
 
   return [

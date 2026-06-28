@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
-import { confirmMemoryCandidate } from "@/lib/memories/actions";
+import {
+  confirmMemoryCandidate,
+  MemoryCandidateAlreadyHandledError,
+  MemoryCandidateNotFoundError,
+} from "@/lib/memories/actions";
 
 type RouteContext = {
   params: Promise<{ candidateId: string }>;
@@ -19,9 +23,17 @@ export async function POST(_request: Request, context: RouteContext) {
     const result = await confirmMemoryCandidate({ candidateId, userId: user.id });
     return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof MemoryCandidateNotFoundError) {
+      return NextResponse.json({ error: error.message }, { status: 404 });
+    }
+
+    if (error instanceof MemoryCandidateAlreadyHandledError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "确认记忆失败" },
-      { status: 404 }
+      { error: "确认记忆失败" },
+      { status: 500 }
     );
   }
 }

@@ -1,6 +1,10 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth/session";
+import {
+  confirmMemoryCandidate,
+  ignoreMemoryCandidate,
+} from "@/lib/memories/actions";
 import { ensureTestDatabase } from "./test-db";
 
 type CurrentUser = Awaited<ReturnType<typeof getCurrentUser>>;
@@ -140,7 +144,7 @@ describe("memory candidate actions", () => {
     });
     const payload = await response.json();
 
-    expect(response.status).toBe(404);
+    expect(response.status).toBe(409);
     expect(payload).toMatchObject({ error: "记忆候选已处理" });
     await expect(
       prisma.memory.count({ where: { userId: user.id, label: candidate.label } })
@@ -178,10 +182,97 @@ describe("memory candidate actions", () => {
     });
     const payload = await response.json();
 
-    expect(response.status).toBe(404);
+    expect(response.status).toBe(409);
     expect(payload).toMatchObject({ error: "记忆候选已处理" });
     await expect(
       prisma.memoryCandidate.findUniqueOrThrow({ where: { id: candidate.id } })
     ).resolves.toMatchObject({ status: "confirmed" });
+  });
+
+  it("returns not found for a missing candidate", async () => {
+    const { POST } = await import(
+      "@app/api/memory-candidates/[candidateId]/confirm/route"
+    );
+    const user = await prisma.user.create({
+      data: {
+        email: `missing-memory-${Date.now()}@example.com`,
+        name: "Missing User",
+        passwordHash: "hash",
+      },
+      include: { settings: true },
+    });
+    getCurrentUserMock.mockResolvedValue(user);
+
+    const response = await POST(new Request("http://localhost"), {
+      params: Promise.resolve({ candidateId: "missing-candidate" }),
+    });
+    const payload = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(payload).toMatchObject({ error: "未找到记忆候选" });
+  });
+
+  it("allows only one concurrent confirm to create memory", async () => {
+    const user = await prisma.user.create({
+      data: {
+        email: `concurrent-confirm-memory-${Date.now()}@example.com`,
+        name: "Concurrent Confirm User",
+        passwordHash: "hash",
+      },
+    });
+    const candidate = await prisma.memoryCandidate.create({
+      data: {
+        userId: user.id,
+        kind: "origin",
+        label: "并发确认出发地",
+        valueJson: JSON.stringify({ originName: "外事学校" }),
+      },
+    });
+
+    const results = await Promise.allSettled([
+      confirmMemoryCandidate({ candidateId: candidate.id, userId: user.id }),
+      confirmMemoryCandidate({ candidateId: candidate.id, userId: user.id }),
+    ]);
+
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
+    await expect(
+      prisma.memory.count({ where: { userId: user.id, label: candidate.label } })
+    ).resolves.toBe(1);
+    await expect(
+      prisma.memoryCandidate.findUniqueOrThrow({ where: { id: candidate.id } })
+    ).resolves.toMatchObject({ status: "confirmed" });
+  });
+
+  it("allows only one concurrent ignore to handle a candidate", async () => {
+    const user = await prisma.user.create({
+      data: {
+        email: `concurrent-ignore-memory-${Date.now()}@example.com`,
+        name: "Concurrent Ignore User",
+        passwordHash: "hash",
+      },
+    });
+    const candidate = await prisma.memoryCandidate.create({
+      data: {
+        userId: user.id,
+        kind: "preference",
+        label: "并发忽略偏好",
+        valueJson: JSON.stringify({ mode: "bike" }),
+      },
+    });
+
+    const results = await Promise.allSettled([
+      ignoreMemoryCandidate({ candidateId: candidate.id, userId: user.id }),
+      ignoreMemoryCandidate({ candidateId: candidate.id, userId: user.id }),
+    ]);
+
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
+    await expect(
+      prisma.memory.count({ where: { userId: user.id, label: candidate.label } })
+    ).resolves.toBe(0);
+    await expect(
+      prisma.memoryCandidate.findUniqueOrThrow({ where: { id: candidate.id } })
+    ).resolves.toMatchObject({ status: "ignored" });
   });
 });

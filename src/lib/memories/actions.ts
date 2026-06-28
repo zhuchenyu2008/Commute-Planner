@@ -1,21 +1,48 @@
 import { prisma } from "@/lib/db";
 
+export class MemoryCandidateNotFoundError extends Error {
+  constructor() {
+    super("未找到记忆候选");
+    this.name = "MemoryCandidateNotFoundError";
+  }
+}
+
+export class MemoryCandidateAlreadyHandledError extends Error {
+  constructor() {
+    super("记忆候选已处理");
+    this.name = "MemoryCandidateAlreadyHandledError";
+  }
+}
+
 export async function confirmMemoryCandidate(input: {
   candidateId: string;
   userId: string;
 }) {
   return prisma.$transaction(async (tx) => {
-    const candidate = await tx.memoryCandidate.findFirst({
-      where: { id: input.candidateId, userId: input.userId },
+    const claimed = await tx.memoryCandidate.updateMany({
+      where: {
+        id: input.candidateId,
+        userId: input.userId,
+        status: "pending",
+      },
+      data: { status: "confirmed" },
     });
 
-    if (!candidate) {
-      throw new Error("未找到记忆候选");
+    if (claimed.count !== 1) {
+      const existing = await tx.memoryCandidate.findFirst({
+        where: { id: input.candidateId, userId: input.userId },
+      });
+
+      if (!existing) {
+        throw new MemoryCandidateNotFoundError();
+      }
+
+      throw new MemoryCandidateAlreadyHandledError();
     }
 
-    if (candidate.status !== "pending") {
-      throw new Error("记忆候选已处理");
-    }
+    const candidate = await tx.memoryCandidate.findFirstOrThrow({
+      where: { id: input.candidateId, userId: input.userId },
+    });
 
     await tx.memory.create({
       data: {
@@ -26,11 +53,6 @@ export async function confirmMemoryCandidate(input: {
       },
     });
 
-    await tx.memoryCandidate.update({
-      where: { id: candidate.id },
-      data: { status: "confirmed" },
-    });
-
     return { status: "confirmed" };
   });
 }
@@ -39,22 +61,28 @@ export async function ignoreMemoryCandidate(input: {
   candidateId: string;
   userId: string;
 }) {
-  const candidate = await prisma.memoryCandidate.findFirst({
-    where: { id: input.candidateId, userId: input.userId },
+  return prisma.$transaction(async (tx) => {
+    const claimed = await tx.memoryCandidate.updateMany({
+      where: {
+        id: input.candidateId,
+        userId: input.userId,
+        status: "pending",
+      },
+      data: { status: "ignored" },
+    });
+
+    if (claimed.count !== 1) {
+      const existing = await tx.memoryCandidate.findFirst({
+        where: { id: input.candidateId, userId: input.userId },
+      });
+
+      if (!existing) {
+        throw new MemoryCandidateNotFoundError();
+      }
+
+      throw new MemoryCandidateAlreadyHandledError();
+    }
+
+    return { status: "ignored" };
   });
-
-  if (!candidate) {
-    throw new Error("未找到记忆候选");
-  }
-
-  if (candidate.status !== "pending") {
-    throw new Error("记忆候选已处理");
-  }
-
-  await prisma.memoryCandidate.update({
-    where: { id: candidate.id },
-    data: { status: "ignored" },
-  });
-
-  return { status: "ignored" };
 }
