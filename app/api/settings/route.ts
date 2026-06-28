@@ -3,12 +3,30 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { readEnv } from "@/lib/env";
 
+function getSettingsDefaults() {
+  const env = readEnv();
+  return {
+    defaultCity: env.defaultCity,
+    timezone: env.defaultTimezone,
+    originName: env.defaultOriginName,
+    originLngLat: env.defaultOrigin,
+    routePreference: "balanced",
+    telegramChatId: null,
+    emailRecipient: null
+  };
+}
+
 function asOptionalString(value: unknown): string | null | undefined {
   if (value === null) {
     return null;
   }
 
-  return typeof value === "string" ? value.trim() : undefined;
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 export async function GET() {
@@ -22,7 +40,7 @@ export async function GET() {
     where: { userId: user.id }
   });
 
-  return NextResponse.json({ settings });
+  return NextResponse.json({ settings: settings ?? getSettingsDefaults() });
 }
 
 export async function PUT(request: Request) {
@@ -33,17 +51,17 @@ export async function PUT(request: Request) {
   }
 
   const body = await request.json().catch(() => ({}));
-  const env = readEnv();
+  const defaults = getSettingsDefaults();
   const data = {
     defaultCity:
-      asOptionalString(body.defaultCity) || env.defaultCity,
-    timezone: asOptionalString(body.timezone) || env.defaultTimezone,
+      asOptionalString(body.defaultCity) || defaults.defaultCity,
+    timezone: asOptionalString(body.timezone) || defaults.timezone,
     originName:
-      asOptionalString(body.originName) || env.defaultOriginName,
+      asOptionalString(body.originName) || defaults.originName,
     originLngLat:
-      asOptionalString(body.originLngLat) || env.defaultOrigin,
+      asOptionalString(body.originLngLat) || defaults.originLngLat,
     routePreference:
-      asOptionalString(body.routePreference) || "balanced",
+      asOptionalString(body.routePreference) || defaults.routePreference,
     telegramChatId: asOptionalString(body.telegramChatId) ?? null,
     emailRecipient: asOptionalString(body.emailRecipient) ?? null
   };

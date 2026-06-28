@@ -1,7 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/db";
+import { ensureTestDatabase } from "./test-db";
 
 describe("settings persistence", () => {
+  beforeAll(async () => {
+    await ensureTestDatabase();
+  });
+
   it("stores commute defaults needed by the planner", async () => {
     const user = await prisma.user.create({
       data: {
