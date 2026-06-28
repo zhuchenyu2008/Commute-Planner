@@ -3,6 +3,10 @@
 .env
 .superpowers/
 node_modules/
+.npm-cache/
 .next/
+tsconfig.tsbuildinfo
+*.db
+*.db-journal
 data/
 .worktrees/

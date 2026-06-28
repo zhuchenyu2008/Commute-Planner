@@ -1,311 +1,162 @@
-# Commute Planner MVP Design
+# 通勤规划助手 MVP 设计
+
+## 目标
 
-## Goal
+构建一个本地优先的个人智能通勤规划应用。登录用户可以在首页输入一句自然语言请求，例如 `明天 9:15 到龙湖天街电影院`，系统会创建 OpenAI-compatible Agent 会话，展示规划过程，并生成可执行的行程计划。
 
-Build a local-first intelligent commute planning app for personal use. The app lets a signed-in user enter one natural-language request, watches an OpenAI-compatible Agent plan the trip, then stores and tracks an executable itinerary with routes, detailed buffer decisions, automatic recalculation, reminders, history, settings, notifications, and confirmable personal memories.
+应用需要覆盖目的地定位、路线候选、最晚出发时间、路线分段、缓冲时间、自动复算、提醒任务、历史记录、设置、通知日志和可确认的个人记忆。
 
-The first version is a complete local MVP: Next.js frontend, Prisma/SQLite persistence, Docker support, real integrations when `.env` is configured, and deterministic mock fallbacks when a key or service is unavailable.
+## 技术方案
 
-## Chosen Approach
+项目采用 Next.js App Router 单体应用，服务层集中在 `src/lib`：
 
-Use a Next.js App Router monolith with an Agent service layer. The app, API routes/server actions, Prisma database access, Agent orchestration, AMap adapters, notification adapters, and scheduler entrypoints live in one repository.
+- 前端页面和 API routes 放在 `app`。
+- Prisma/SQLite 负责本地持久化。
+- Agent runner 负责规划、超时和重试。
+- 高德 Web Service 通过 `src/lib/amap` 适配，并带 deterministic mock fallback。
+- Telegram/email 通知通过 `src/lib/notifications` 适配。
+- 后台调度器通过 `scripts/scheduler.ts` 和 Docker scheduler 服务每分钟执行一次。
 
-This keeps local development and Docker operation simple while preserving clear internal boundaries. Long-running planning work is isolated in the Agent runner and scheduler modules, not embedded directly in page components.
+天气只作为 Agent 可参考的信息，不是硬编码排名规则；Agent 可以引用天气解释路线或缓冲选择，但实现层不自动因为天气给路线加固定分钟数。
 
-This design reflects the approved v2 flow: weather is exposed to the Agent as reference information for context and explanation, non-route buffer time is Agent-decided and stored as structured components, Docker support is required, Agent runs use a 10-minute timeout with retry instead of a reasoning-turn limit, and multi-stop trips are first-class.
+## 用户流程
 
-## User Flow
+1. 用户登录应用。
+2. 用户在设置中配置默认城市、时区、出发点、路线偏好、Telegram 和邮件通知。
+3. 用户回到首页输入一句话，例如 `明天 9:15 到龙湖天街电影院`。
+4. 系统校验登录状态并创建 Agent 会话。
+5. 用户进入 `/agent/[sessionId]`，看到智能体读取偏好、查询 POI、获取天气参考、查询路线和生成缓冲的过程。
+6. 规划完成后系统写入行程、路线、分段、缓冲和提醒任务，并跳转到 `/trips/[tripId]`。
+7. 行程详情页展示最晚出发时间、路线分段、缓冲时间、提醒计划和监控状态。
+8. 用户如果不满意，可以点击“智能体对话”回到会话继续调整。
+9. 调度器每分钟检查到期提醒，记录复算状态，并在配置可用时发送 Telegram/email 通知。
 
-The normal single-destination flow is:
+多站行程是一等模型：`Trip` 包含有序 `TripStop`，每一段 `TripLeg` 都有自己的路线候选、路线分段、缓冲、复算记录和提醒任务。
 
-1. User logs in and configures settings.
-2. User enters a sentence on the homepage, for example `明天 9:15 到龙湖天街电影院`.
-3. App validates the session and creates an Agent conversation.
-4. User is taken to the Agent conversation page.
-5. The conversation page streams or polls visible planning events: intent parsing, POI lookup, weather lookup, route calls, buffer decisions, memory reads, and final choice.
-6. When the Agent completes planning, the app writes the trip and redirects to the trip detail page.
-7. The trip detail page shows latest departure, route breakdown, non-route buffer components, reminder schedule, recalculation state, and notification status.
-8. If the user is dissatisfied, they click the Agent conversation button on the detail page and continue the same Agent session to revise the existing trip.
-9. The background scheduler checks due jobs every minute.
-10. Due jobs trigger Agent-assisted recalculation and notification decisions.
-11. Telegram and email reminders are sent when configured and logged.
+## 页面
 
-Multi-stop requests are first-class:
+- 登录：本地账号密码登录，使用 session cookie。
+- 首页：严格延续 Lumina Velocity 样板风格，第一屏就是通勤输入，不做营销 landing page。
+- 智能体对话：展示用户请求、智能体消息、工具调用记录和自动跳转状态。
+- 行程详情：展示目标到达、最晚出发、路线分段、缓冲时间、提醒计划、监控状态和返回智能体对话入口。
+- 历史行程：按创建时间展示已规划行程。
+- 设置：维护默认城市、时区、出发点、路线偏好、Telegram Chat ID 和邮件接收人。
+- 记忆：展示已确认记忆和待确认记忆候选。
 
-- Example: `明天先去 A 拿东西，再去 B，9:15 前到`.
-- A trip contains ordered stops and legs.
-- Each leg has its own route candidates, selected route, segments, buffer components, latest departure/arrival targets, recalculation records, and reminder jobs.
-- The Agent decides whether a reminder belongs to a leg departure, a stop handoff, or the final departure.
+## Agent 能力
 
-## Product Pages
+Agent 以较宽的决策权限为中心，可以调用项目暴露的规划能力：
 
-### Login
+- 读取用户设置和已确认记忆。
+- 搜索高德 POI。
+- 查询天气参考。
+- 查询公交/地铁、步行和骑行路线。
+- 生成结构化缓冲时间。
+- 创建或更新行程、停靠点、路段、路线候选、路线分段和提醒任务。
+- 写入复算记录和通知日志。
+- 在配置可用时触发 Telegram/email 通知。
 
-Provide a simple local login for MVP use. The default implementation can use credentials stored in SQLite or seeded from `.env`, with session cookies. OAuth is out of scope.
+Agent 不限制推理轮数。运行使用 10 分钟 wall-clock timeout，超时后自动重试；重试限制是任务尝试次数，不是 Agent 思考轮数。
 
-### Home
+## 时间模型
 
-Follow the provided Lumina Velocity frontend sample:
+路线时间和非路线时间必须分开记录。
 
-- Mobile-first, glassmorphic surfaces, Inter typography, bottom navigation.
-- Primary action is the one-sentence commute input.
-- After submit, create an Agent session and navigate to `/agent/[sessionId]`.
-- Home can also show active trips and quick destinations.
+路线时间来自高德路线结果，例如公交/地铁、步行、骑行。
 
-### Agent Conversation
+非路线缓冲由 Agent 决策并结构化保存，包括：
 
-This page is the visible planning workspace:
+- 进入商场、园区或场馆。
+- 从入口走到电影院、店铺或办公室。
+- 电梯、扶梯和楼层移动。
+- 检票、安检、排队或签到。
+- 停车、取车、还共享单车。
+- 地铁换乘、站台等待、进出站摩擦。
+- 路口过街和站外步行。
+- 用户偏好余量。
+- 天气参考说明。
 
-- Shows user prompt and Agent decision steps.
-- Shows tool-call summaries without leaking secrets.
-- Shows route candidate comparisons, weather reference notes, and buffer reasoning.
-- Shows completion state and automatic transition to trip detail.
-- Supports continuing an existing trip session from the detail page.
+天气缓冲的分钟数保持为 `0`，只作为参考信息展示和记录。
 
-The Agent may make broad decisions and call all exposed planning tools. The UI should make that autonomy observable and reversible.
+## 数据模型
 
-### Trip Detail
+核心 Prisma 模型：
 
-Follow the provided trip detail sample:
+- `User`
+- `Session`
+- `UserSettings`
+- `AgentSession`
+- `AgentMessage`
+- `AgentToolCall`
+- `Trip`
+- `TripStop`
+- `TripLeg`
+- `RouteCandidate`
+- `RouteSegment`
+- `BufferComponent`
+- `ReminderJob`
+- `RecalculationLog`
+- `NotificationLog`
+- `Memory`
+- `MemoryCandidate`
 
-- Destination or current stop title.
-- Arrival target and status.
-- Selected route and alternatives.
-- Timeline of route segments.
-- Timeline of buffer components, including non-route time such as mall entrance, walking from mall entrance to cinema, floor movement, check-in/security, transfer friction, bike pickup/parking, and weather reference notes.
-- Reminder schedule.
-- Recalculation state.
-- Actions: recalculate now, change route, adjust buffer, stop monitoring, return to Agent conversation.
+内部状态枚举仍使用英文值，例如 `monitoring`、`scheduled`、`sent`，前端负责将其展示为中文。
 
-### History
+## 高德集成
 
-List completed, cancelled, and monitored trips. A previous trip can be replanned, which creates a new Agent session seeded with the historical trip and memories.
+`src/lib/amap` 提供统一适配层：
 
-### Settings
+- POI 文本搜索。
+- POI 详情。
+- 天气查询。
+- 公交/地铁路线。
+- 步行路线。
+- 骑行路线。
 
-Store:
+高德请求必须经过全局限流队列，每秒最多 3 次。缺少 key 或真实服务失败时，系统回落到 mock client，以保证本地 UI 和测试稳定。
 
-- Default city.
-- Timezone.
-- Default origin name and coordinates.
-- Route preferences.
-- AMap usage mode.
-- OpenAI-compatible model configuration read from environment.
-- Telegram notification target.
-- Email notification recipient and SMTP configuration.
-- Default reminder cadence.
+## 调度器与通知
 
-### Memories
+调度器每分钟查找到期的 `ReminderJob`，使用锁避免重复发送。处理流程：
 
-Show confirmed personal memories and pending memory candidates. The Agent can propose memories, but the user must confirm them before they become active planning context.
+1. 加载行程、路段、路线候选、设置和记忆。
+2. 记录智能体辅助复算摘要。
+3. 更新提醒任务状态。
+4. 写入 Telegram/email 通知日志。
+5. 配置完整时发送通知，配置缺失时记录为 skipped。
 
-## Agent Architecture
-
-### Runner
-
-The Agent runner is responsible for planning and revisions.
-
-- No round-count limit is imposed.
-- Each Agent run has a 10-minute wall-clock timeout.
-- Timeout triggers automatic retry with the same session, current state, and a retry marker.
-- Retries stop when the run succeeds or the configured retry limit/time budget is reached for the job. The retry limit is for job attempts, not Agent reasoning turns.
-- All tool calls and decisions are logged.
-
-### Tools Exposed To Agent
-
-The Agent receives broad tool access:
-
-- Read user profile/settings.
-- Read confirmed memories.
-- Propose memory candidates.
-- Search AMap POIs.
-- Fetch AMap POI details.
-- Fetch AMap weather.
-- Query AMap transit routes.
-- Query AMap walking routes.
-- Query AMap bicycling routes.
-- Estimate structured buffer components.
-- Create/update trips.
-- Create/update stops and legs.
-- Create/update route candidates and route segments.
-- Create/update reminder jobs.
-- Create notification logs.
-- Trigger Telegram/email notification adapters.
-- Mark trips, legs, and reminders as monitored, paused, done, or cancelled.
-
-Weather is reference information for the Agent, not a hard decision rule. The Agent may fetch and display weather, cite it in its reasoning, and use it as one piece of context when explaining route or buffer choices. The implementation must not encode mechanical weather-driven ranking such as always down-ranking cycling in rain or automatically adding fixed weather buffers.
-
-### Time Model
-
-The Agent must separate route time from non-route time.
-
-Route time includes AMap transit, walking, and cycling durations.
-
-Non-route buffer components include:
-
-- Entering a mall or venue.
-- Moving from mall entrance to cinema/shop/office.
-- Elevator/escalator and floor changes.
-- Ticketing, security, queueing, or check-in.
-- Parking or returning a shared bike.
-- Bike pickup availability friction.
-- Metro transfer and platform waiting.
-- Road crossing and station entrance friction.
-- Weather context note.
-- User preference margin.
-
-Every buffer component stores category, minutes, reason, and whether it came from Agent inference, user setting, memory, weather context, or manual user override.
-
-## AMap Integration
-
-AMap calls are wrapped in `lib/amap` adapters.
-
-Required capabilities:
-
-- Text POI search with city limit.
-- POI detail lookup.
-- Weather query.
-- Transit integrated directions.
-- Walking directions.
-- Bicycling directions.
-
-The AMap layer enforces a global throttle of at most 3 requests per second. All Agent tool calls must pass through that queue.
-
-If `.env` contains valid AMap configuration, calls use the real Web Service. If a key is missing or the service fails, the tool returns a logged mock response suitable for local UI and test flows.
-
-## Data Model
-
-Core Prisma entities:
-
-- `User`: account identity.
-- `Session`: auth/session records.
-- `UserSettings`: city, timezone, origin, route preferences, notification settings.
-- `AgentSession`: conversation and run state.
-- `AgentMessage`: user, assistant, system, and tool summary messages.
-- `AgentToolCall`: tool name, request summary, response summary, status, duration, error.
-- `Trip`: top-level itinerary.
-- `TripStop`: ordered destinations or intermediate stops.
-- `TripLeg`: travel between origin/stop pairs.
-- `RouteCandidate`: one possible route for a leg.
-- `RouteSegment`: walking, transit, bike, wait, transfer, venue, or buffer segment.
-- `BufferComponent`: named non-route time component with Agent reason.
-- `ReminderJob`: scheduled recalculation/reminder jobs.
-- `RecalculationLog`: each automatic or manual recheck.
-- `NotificationLog`: Telegram/email attempts and results.
-- `Memory`: confirmed user memory.
-- `MemoryCandidate`: Agent-proposed memory awaiting confirmation.
-
-Trip status values include `planning`, `active`, `monitoring`, `completed`, `cancelled`, and `failed`.
-
-Reminder status values include `scheduled`, `running`, `sent`, `skipped`, `failed`, and `cancelled`.
-
-## Scheduler
-
-The scheduler runs once per minute, either through a Next.js API endpoint or a dedicated Node command in Docker.
-
-It finds due reminder jobs and processes them with locking to avoid duplicate sends.
-
-For each due job:
-
-1. Load trip, leg, selected candidate, settings, and memories.
-2. Run Agent-assisted recalculation with route tools and optional weather reference.
-3. Update ETA, buffer components, route status, and latest departure when needed.
-4. Send notifications when the Agent decides action is needed.
-5. Log all recalculation and notification outcomes.
-
-Default cadence for single-leg trips is T-30, T-20, T-15, T-10, T-5, T. Multi-stop trips create reminder jobs for each leg and stop handoff.
-
-If the requested arrival time is already in the past, planning should not create future reminder jobs. The Agent should surface the issue and ask for a new target time in the conversation.
-
-## Notifications
-
-Telegram and email are optional but supported when configured.
-
-Notification content prioritizes action:
-
-- Leave now.
-- Latest departure time.
-- Arrival target.
-- Route summary.
-- Weather reference and buffer notes.
-
-Every notification attempt writes a `NotificationLog`. Duplicate departure reminders are suppressed through stable dedupe keys.
+默认提醒节奏为 T-30、T-20、T-15、T-10、T-5 和 T。
 
 ## Docker
 
-Provide Docker support for local and deployed operation:
+项目提供 `Dockerfile` 和 `docker-compose.yml`。Compose 同时启动 web 和 scheduler，SQLite 数据挂载到 `./data:/app/data`，容器内使用 `DATABASE_URL=file:/app/data/commute.db`。
 
-- `Dockerfile` builds the Next.js app.
-- `docker-compose.yml` starts the web app with a persisted SQLite volume.
-- A scheduler command or service runs the minute tick.
-- `.env` is mounted or passed through but never committed.
-- Prisma migration and seed commands are documented.
+`.env` 由运行环境提供，不能提交真实密钥。
 
-SQLite data should live under a mounted `data/` directory.
+## 前端设计约束
 
-## Frontend Design Requirements
+必须延续已有前端样板和规范：
 
-The implementation must strictly follow the existing `前端样板和规范` directory. `前端样板和规范/DESIGN.md`, `前端样板和规范/首页/code.html`, and `前端样板和规范/行程规划详情/code.html` are binding implementation references, not loose inspiration.
+- Lumina Velocity 视觉语言。
+- Inter 字体和系统中文字体回退。
+- Commute Blue 主操作色。
+- 玻璃拟态主要操作面板。
+- 移动端底部导航，桌面端顶部导航。
+- 状态 pill、时间线、紧凑但可读的操作型 UI。
+- 不做营销页；首页直接进入通勤输入工作流。
 
-Required frontend constraints:
+新增页面也必须沿用同一套 token、间距、圆角、导航和信息层级。
 
-- Lumina Velocity visual language.
-- Inter typography.
-- Commute Blue primary action color.
-- Glass surfaces for major commute cards.
-- Mobile-first bottom navigation and desktop top navigation.
-- Page structure, spacing rhythm, navigation placement, rounded surfaces, status pills, trip timeline style, and action hierarchy must match the provided samples unless a new page has no sample equivalent.
-- New pages such as Agent Conversation, Settings, History, Memories, and Login must extend the same token set and component language from the samples.
-- Avoid marketing landing pages; the first screen is the working commute input.
-- Use icons for navigation and actions.
-- Keep operational UI dense but readable.
+## 测试策略
 
-Pages should be implemented as real application surfaces, not static mockups. Before completion, compare the implemented UI against the supplied sample screenshots and correct obvious deviations in spacing, color, typography, and navigation behavior.
+行为代码使用 TDD。重点覆盖：
 
-## Testing Strategy
-
-Use TDD for behavior-heavy code:
-
-- Natural-language intent parser fallbacks.
-- AMap throttle.
-- Agent run timeout and retry policy.
-- Buffer component calculation helpers.
-- Trip/stop/leg persistence.
-- Reminder job creation.
-- Scheduler due-job locking.
-- Notification dedupe.
-- Mock fallback behavior.
-
-Integration tests should verify a complete local flow with mock services:
-
-1. Login.
-2. Submit a sentence.
-3. Create Agent session.
-4. Produce trip with selected route and buffer components.
-5. Create reminder jobs.
-6. Recalculate a due reminder.
-7. Log a notification.
-
-UI tests should verify:
-
-- Home input navigation.
-- Agent conversation progress.
-- Completion redirect to trip detail.
-- Detail button returns to the Agent session.
-- Multi-stop trips render stops and legs.
-
-## Out Of Scope For MVP
-
-- Production OAuth.
-- Native mobile app.
-- Real-time vehicle location.
-- Payment or ride-hailing integration.
-- Multi-user admin console.
-- Cloud database migration beyond SQLite.
-
-## Implementation Decisions
-
-- The Agent conversation page will use polling persisted `AgentMessage` and `AgentToolCall` records for the MVP. If streaming is added after the MVP, it must reuse the same database model.
-- Real AMap responses should be normalized into stable internal DTOs before the Agent sees them.
-- Mock providers must be deterministic so tests do not depend on network state.
-- The app must not read or expose `.env` values in the UI or logs.
+- 自然语言目的地解析。
+- 高德限流和 mock fallback。
+- Agent 超时与重试。
+- 缓冲组件归一化。
+- 多站行程持久化。
+- 提醒任务生成。
+- 调度器到期任务处理。
+- 通知去重和日志。
+- 中文 UI 文案和 E2E 主流程。

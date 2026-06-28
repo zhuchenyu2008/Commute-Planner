@@ -1,0 +1,24 @@
+services:
+  web:
+    build: .
+    command: sh -c "npx prisma migrate deploy && npm run start"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: file:/app/data/commute.db
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+
+  scheduler:
+    build: .
+    command: sh -c "while true; do npm run scheduler:tick; sleep 60; done"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: file:/app/data/commute.db
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - web
