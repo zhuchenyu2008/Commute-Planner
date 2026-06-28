@@ -1,4 +1,8 @@
 import { defineConfig } from "vitest/config";
+import { fileURLToPath } from "node:url";
+
+const srcPath = fileURLToPath(new URL("./src", import.meta.url));
+const appPath = fileURLToPath(new URL("./app", import.meta.url));
 
 export default defineConfig({
   test: {
@@ -8,8 +12,8 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@": "/src",
-      "@app": "/app"
+      "@": srcPath,
+      "@app": appPath
     }
   }
 });
