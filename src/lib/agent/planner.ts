@@ -1099,10 +1099,10 @@ async function runConversationAttempt(input: {
         input.settings
       );
       const explicitTripId = readOptionalString(toolCall.arguments, "tripId");
-      latestTripId = input.context.tripId ?? explicitTripId ?? latestTripId;
       if (explicitTripId) {
         input.context.tripId = explicitTripId;
       }
+      latestTripId = explicitTripId ?? input.context.tripId ?? latestTripId;
       input.messages.push({
         role: "tool",
         toolCallId: toolCall.id,

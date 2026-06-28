@@ -706,6 +706,148 @@ describe("agent planning sessions", () => {
       finalStopName: "Library",
     });
   });
+
+  it("prefers an explicit route update trip id over the session's existing trip", async () => {
+    const user = await createUserWithSettings("agent-explicit-trip-switch");
+    const oldTrip = await createPlannedTrip({
+      userId: user.id,
+      rawPrompt: "Old session trip.",
+      timezone: "Asia/Shanghai",
+      title: "Home-OldOffice",
+      finalStopName: "OldOffice",
+      stops: [
+        {
+          order: 1,
+          name: "OldOffice",
+          lngLat: "121.2,29.2",
+          kind: "destination",
+        },
+      ],
+      legs: [
+        {
+          order: 1,
+          originName: "Home",
+          originLngLat: "121.1,29.1",
+          destinationName: "OldOffice",
+          destinationLngLat: "121.2,29.2",
+          routeMinutes: 30,
+          bufferComponents: [
+            {
+              category: "transfer",
+              label: "Transfer",
+              minutes: 5,
+              reason: "Leave time for transfer.",
+            },
+          ],
+        },
+      ],
+    });
+    const anotherTrip = await createPlannedTrip({
+      userId: user.id,
+      rawPrompt: "Another explicit trip.",
+      timezone: "Asia/Shanghai",
+      title: "Home-AnotherOffice",
+      finalStopName: "AnotherOffice",
+      stops: [
+        {
+          order: 1,
+          name: "AnotherOffice",
+          lngLat: "121.3,29.3",
+          kind: "destination",
+        },
+      ],
+      legs: [
+        {
+          order: 1,
+          originName: "Home",
+          originLngLat: "121.1,29.1",
+          destinationName: "AnotherOffice",
+          destinationLngLat: "121.3,29.3",
+          routeMinutes: 35,
+          bufferComponents: [
+            {
+              category: "transfer",
+              label: "Transfer",
+              minutes: 5,
+              reason: "Leave time for transfer.",
+            },
+          ],
+        },
+      ],
+    });
+    const session = await startPlanningSession({
+      userId: user.id,
+      prompt: "Switch the continuation to an explicit trip.",
+    });
+    await prisma.agentSession.update({
+      where: { id: session.id },
+      data: { tripId: oldTrip.id },
+    });
+
+    let calls = 0;
+    const chatClient: AgentChatClient = {
+      async complete() {
+        calls += 1;
+        if (calls === 1) {
+          return {
+            message: {
+              role: "assistant",
+              content: "Switch explicit trip.",
+              toolCalls: [
+                {
+                  id: "switch-summary",
+                  name: "update_trip_summary",
+                  arguments: {
+                    tripId: anotherTrip.id,
+                    title: "Home-Museum",
+                    finalStopName: "Museum",
+                  },
+                },
+              ],
+            },
+          };
+        }
+
+        return {
+          message: {
+            role: "assistant",
+            content: "Explicit trip switched.",
+          },
+        };
+      },
+    };
+
+    const result = await continueAgentSession(
+      {
+        userId: user.id,
+        sessionId: session.id,
+        message: "Use the explicit trip instead of the old one.",
+      },
+      { amapClient, chatClient }
+    );
+
+    expect(result).toMatchObject({
+      status: "completed",
+      tripId: anotherTrip.id,
+    });
+    await expect(
+      prisma.agentSession.findUniqueOrThrow({ where: { id: session.id } })
+    ).resolves.toMatchObject({
+      tripId: anotherTrip.id,
+      status: "completed",
+    });
+    await expect(
+      prisma.trip.findUniqueOrThrow({ where: { id: anotherTrip.id } })
+    ).resolves.toMatchObject({
+      title: "Home-Museum",
+      finalStopName: "Museum",
+    });
+    await expect(
+      prisma.trip.findUniqueOrThrow({ where: { id: oldTrip.id } })
+    ).resolves.toMatchObject({
+      finalStopName: "OldOffice",
+    });
+  });
 });
 
 async function createUserWithSettings(
