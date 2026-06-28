@@ -1,0 +1,13 @@
+.git
+.next
+.npm-cache
+node_modules
+data
+test-results
+playwright-report
+.superpowers
+.worktrees
+*.db
+*.db-journal
+原始skill
+前端样板和规范
