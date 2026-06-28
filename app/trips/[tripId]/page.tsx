@@ -16,7 +16,10 @@ import { RouteTimeline } from "@/components/trips/route-timeline";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getAgentConversationHref } from "@/lib/app-routes";
 import { prisma } from "@/lib/db";
-import { getMonitoringSummary } from "@/lib/trips/monitoring";
+import {
+  getMonitoringStatusDisplay,
+  getMonitoringSummary,
+} from "@/lib/trips/monitoring";
 
 type TripPageProps = {
   params: Promise<{
@@ -195,6 +198,10 @@ export default async function TripDetailPage({ params }: TripPageProps) {
     ...trip.recalculations,
     ...trip.legs.flatMap((leg) => leg.recalculations),
   ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+  const monitoringStatusDisplay = getMonitoringStatusDisplay({
+    tripStatus: trip.status,
+    latestRecalculation,
+  });
   const agentSessionId = trip.agentSessions[0]?.id ?? trip.agentSessionId;
   const routeTitle =
     selectedCandidates.length > 1
@@ -347,13 +354,10 @@ export default async function TripDetailPage({ params }: TripPageProps) {
             </div>
             <div className="mt-4 rounded-2xl bg-[#d3e4fe] p-4">
               <p className="text-sm font-bold text-[#0b1c30]">
-                {latestRecalculation
-                  ? formatStatus(latestRecalculation.status)
-                  : "监控已开启"}
+                {monitoringStatusDisplay.title}
               </p>
               <p className="mt-1 text-sm leading-6 text-[#38485d]">
-                {latestRecalculation?.summary ??
-                  "系统会在预定提醒和智能体复算时检查路线。"}
+                {monitoringStatusDisplay.description}
               </p>
               <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
                 <div className="rounded-xl bg-white/65 p-3">
@@ -370,9 +374,15 @@ export default async function TripDetailPage({ params }: TripPageProps) {
                 </div>
               </div>
               {latestRecalculation ? (
-                <p className="mt-3 text-xs font-semibold uppercase tracking-[0.05em] text-[#38485d]">
-                  触发来源：{formatTrigger(latestRecalculation.trigger)}
-                </p>
+                <div className="mt-3 space-y-1 text-xs font-semibold uppercase tracking-[0.05em] text-[#38485d]">
+                  <p>最近复算：{formatStatus(latestRecalculation.status)}</p>
+                  {latestRecalculation.summary ? (
+                    <p className="normal-case tracking-normal">
+                      {latestRecalculation.summary}
+                    </p>
+                  ) : null}
+                  <p>触发来源：{formatTrigger(latestRecalculation.trigger)}</p>
+                </div>
               ) : null}
               <MonitoringActions tripId={trip.id} status={trip.status} />
             </div>

@@ -16,7 +16,10 @@ import { getAgentStartResult } from "@/components/home/commute-input";
 import { BufferList } from "@/components/trips/buffer-list";
 import { RouteTimeline } from "@/components/trips/route-timeline";
 import { SettingsForm } from "@app/settings/settings-form";
-import { formatMonitoredDuration } from "@/lib/trips/monitoring";
+import {
+  formatMonitoredDuration,
+  getMonitoringStatusDisplay,
+} from "@/lib/trips/monitoring";
 
 describe("sample-aligned UI components", () => {
   afterEach(() => {
@@ -195,6 +198,25 @@ describe("sample-aligned UI components", () => {
         now: new Date("2026-06-28T00:45:00.000Z"),
       })
     ).toBe("45分钟");
+  });
+
+  it("uses cancelled trip status as the monitoring status display source", () => {
+    expect(
+      getMonitoringStatusDisplay({
+        tripStatus: "cancelled",
+        latestRecalculation: {
+          status: "skipped",
+          summary: "最近一次复算已跳过。",
+          trigger: "reminder",
+        },
+      })
+    ).toEqual({
+      title: "监控已取消",
+      description: "系统已停止监控该行程，并取消后续提醒。",
+      recalculationStatus: "skipped",
+      recalculationSummary: "最近一次复算已跳过。",
+      trigger: "reminder",
+    });
   });
 
   it("marks failed agent sessions as terminal instead of loading", () => {

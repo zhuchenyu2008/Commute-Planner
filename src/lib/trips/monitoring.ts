@@ -16,6 +16,31 @@ export type MonitoringSummaryInput = FormatMonitoredDurationInput & {
   scheduledReminderCount: number;
 };
 
+export type MonitoringStatusDisplayInput = {
+  tripStatus?: string | null;
+  latestRecalculation?: {
+    status?: string | null;
+    summary?: string | null;
+    trigger?: string | null;
+  } | null;
+};
+
+const MONITORING_STATUS_LABELS: Record<string, string> = {
+  cancelled: "监控已取消",
+  completed: "已完成",
+  failed: "监控异常",
+  monitoring: "监控已开启",
+  planning: "规划中",
+};
+
+const MONITORING_STATUS_DESCRIPTIONS: Record<string, string> = {
+  cancelled: "系统已停止监控该行程，并取消后续提醒。",
+  completed: "该行程已完成，系统不再继续监控。",
+  failed: "监控状态异常，请稍后重试或重新规划。",
+  monitoring: "系统会在预定提醒和智能体复算时检查路线。",
+  planning: "行程仍在规划中，完成后会进入监控。",
+};
+
 export function formatMonitoredDuration({
   createdAt,
   now = new Date(),
@@ -44,6 +69,23 @@ export function getMonitoringSummary({
   return {
     monitoredFor: formatMonitoredDuration({ createdAt, now }),
     scheduledReminderCount,
+  };
+}
+
+export function getMonitoringStatusDisplay({
+  tripStatus,
+  latestRecalculation,
+}: MonitoringStatusDisplayInput) {
+  const normalizedStatus = tripStatus?.trim() || "monitoring";
+
+  return {
+    title: MONITORING_STATUS_LABELS[normalizedStatus] ?? normalizedStatus,
+    description:
+      MONITORING_STATUS_DESCRIPTIONS[normalizedStatus] ??
+      "系统会在预定提醒和智能体复算时检查路线。",
+    recalculationStatus: latestRecalculation?.status ?? null,
+    recalculationSummary: latestRecalculation?.summary ?? null,
+    trigger: latestRecalculation?.trigger ?? null,
   };
 }
 
