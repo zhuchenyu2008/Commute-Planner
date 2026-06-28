@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import React, { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Mic, Search } from "lucide-react";
 
@@ -47,23 +47,27 @@ export function CommuteInput() {
     setError("");
     setIsSubmitting(true);
 
-    const response = await fetch("/api/agent-sessions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: trimmedPrompt }),
-    });
-    const payload = await response.json().catch(() => ({}));
+    try {
+      const response = await fetch("/api/agent-sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: trimmedPrompt }),
+      });
+      const payload = await response.json().catch(() => ({}));
 
-    setIsSubmitting(false);
+      const result = getAgentStartResult(response.status, payload);
 
-    const result = getAgentStartResult(response.status, payload);
+      if (!result.route) {
+        setError(result.error);
+        return;
+      }
 
-    if (!result.route) {
-      setError(result.error);
-      return;
+      router.push(result.route);
+    } catch {
+      setError("无法开始规划。");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    router.push(result.route);
   }
 
   return (

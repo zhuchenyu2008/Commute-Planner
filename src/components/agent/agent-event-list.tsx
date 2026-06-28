@@ -176,15 +176,30 @@ export function AgentEventList({
     }
 
     async function poll() {
-      const response = await fetch(`/api/agent-sessions/${sessionId}`);
-      const payload = await response.json().catch(() => ({}));
+      let response: Response;
+      let payload: { error?: unknown; session?: AgentSessionPayload };
+
+      try {
+        response = await fetch(`/api/agent-sessions/${sessionId}`);
+        payload = await response.json().catch(() => ({}));
+      } catch {
+        if (!cancelled) {
+          setError("无法加载智能体会话。");
+        }
+        return;
+      }
 
       if (cancelled) {
         return;
       }
 
       if (!response.ok) {
-        setError(payload.error ?? "无法加载智能体会话。");
+        setError(typeof payload.error === "string" ? payload.error : "无法加载智能体会话。");
+        return;
+      }
+
+      if (!payload.session) {
+        setError("无法加载智能体会话。");
         return;
       }
 

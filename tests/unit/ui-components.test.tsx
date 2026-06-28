@@ -14,7 +14,7 @@ import {
   getAgentSessionViewState,
 } from "@/components/agent/agent-event-list";
 import { BottomNav } from "@/components/bottom-nav";
-import { getAgentStartResult } from "@/components/home/commute-input";
+import { CommuteInput, getAgentStartResult } from "@/components/home/commute-input";
 import { BufferList } from "@/components/trips/buffer-list";
 import { RouteTimeline } from "@/components/trips/route-timeline";
 import { SettingsForm } from "@app/settings/settings-form";
@@ -250,6 +250,18 @@ describe("sample-aligned UI components", () => {
     });
   });
 
+  it("prioritizes login for unauthenticated agent starts with action hrefs", () => {
+    expect(
+      getAgentStartResult(401, {
+        actionHref: "/settings",
+        error: "璇峰厛鐧诲綍",
+      })
+    ).toEqual({
+      route: "/login",
+      error: "",
+    });
+  });
+
   it("accepts continued agent messages when the API starts a run", () => {
     expect(getAgentSendMessageResult(202, { status: "running" })).toEqual({
       accepted: true,
@@ -278,6 +290,29 @@ describe("sample-aligned UI components", () => {
       route: "/settings",
       error: "请先完成设置",
     });
+  });
+
+  it("recovers the home agent start form when fetch rejects", async () => {
+    const fetchMock = vi.fn(async () => {
+      throw new Error("network down");
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { container } = render(<CommuteInput />);
+
+    const promptInput = container.querySelector("input");
+    const submitButton = container.querySelector('button[type="submit"]');
+    expect(promptInput).toBeTruthy();
+    expect(submitButton).toBeTruthy();
+
+    fireEvent.change(promptInput!, {
+      target: { value: "去公司" },
+    });
+    fireEvent.click(submitButton!);
+
+    await screen.findByText("无法开始规划。");
+
+    expect((submitButton as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("continues completed conversation sessions without redirecting", async () => {
@@ -371,6 +406,17 @@ describe("sample-aligned UI components", () => {
         );
       })
     ).toBe(false);
+  });
+
+  it("shows an error when loading an agent session rejects", async () => {
+    const fetchMock = vi.fn(async () => {
+      throw new Error("network down");
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AgentEventList autoRedirect={false} sessionId="session-error" />);
+
+    await screen.findByText("无法加载智能体会话。");
   });
 
   it("loads Inter from the root layout", () => {
