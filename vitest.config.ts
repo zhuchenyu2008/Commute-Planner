@@ -6,6 +6,9 @@ const appPath = fileURLToPath(new URL("./app", import.meta.url));
 
 export default defineConfig({
   test: {
+    env: {
+      DATABASE_URL: process.env.DATABASE_URL ?? "file:./unit-test.db"
+    },
     environment: "node",
     globals: false,
     include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"]
