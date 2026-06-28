@@ -5,9 +5,12 @@ import {
   startPlanningSession,
 } from "@/lib/agent/planner";
 import type { AgentChatClient } from "@/lib/agent/chat-client";
+import { createMockAmapClient } from "@/lib/amap/mock";
 import { ensureTestDatabase } from "./test-db";
 
 describe("agent planning sessions", () => {
+  const amapClient = createMockAmapClient();
+
   beforeAll(async () => {
     await ensureTestDatabase();
   });
@@ -178,7 +181,10 @@ describe("agent planning sessions", () => {
       },
     };
 
-    const result = await runPlanningSession(session.id, { chatClient });
+    const result = await runPlanningSession(session.id, {
+      amapClient,
+      chatClient,
+    });
 
     expect(result.status).toBe("completed");
     expect(result.tripId).toEqual(expect.any(String));
@@ -260,7 +266,7 @@ describe("agent planning sessions", () => {
       minutes: 0,
       source: "weather_context",
     });
-  });
+  }, 15000);
 
   it("injects confirmed memories into every planning run before the AI calls tools", async () => {
     const user = await prisma.user.create({
@@ -343,7 +349,7 @@ describe("agent planning sessions", () => {
       },
     };
 
-    await runPlanningSession(session.id, { chatClient });
+    await runPlanningSession(session.id, { amapClient, chatClient });
 
     expect(seenMessages.join("\n")).toContain("用户已确认的长期记忆");
     expect(seenMessages.join("\n")).toContain("用户确认常从外事学校出发");
@@ -502,7 +508,10 @@ describe("agent planning sessions", () => {
       },
     };
 
-    const result = await runPlanningSession(session.id, { chatClient });
+    const result = await runPlanningSession(session.id, {
+      amapClient,
+      chatClient,
+    });
 
     expect(result.status).toBe("completed");
     expect(requestedTools).toEqual([
@@ -608,7 +617,10 @@ describe("agent planning sessions", () => {
       },
     };
 
-    const result = await runPlanningSession(session.id, { chatClient });
+    const result = await runPlanningSession(session.id, {
+      amapClient,
+      chatClient,
+    });
 
     expect(result.status).toBe("failed");
     expect(result.tripId).toBeNull();

@@ -44,6 +44,7 @@ type PlanningSettings = {
 
 type RunPlanningSessionOptions = {
   chatClient?: AgentChatClient;
+  amapClient?: AmapClient;
 };
 
 type ToolExecutionContext = {
@@ -756,7 +757,7 @@ export async function runPlanningAttempt(
   const settings = await loadPlanningSettings(session.userId);
   const chatClient = options.chatClient ?? createOpenAiChatClient();
   const context: ToolExecutionContext = {
-    amap: createAmapClient(),
+    amap: options.amapClient ?? createAmapClient(),
     sessionId,
     userId: session.userId,
     prompt: session.prompt,

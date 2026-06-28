@@ -14,7 +14,7 @@ export async function confirmMemoryCandidate(input: {
     }
 
     if (candidate.status !== "pending") {
-      return { status: candidate.status };
+      throw new Error("记忆候选已处理");
     }
 
     await tx.memory.create({
@@ -39,24 +39,22 @@ export async function ignoreMemoryCandidate(input: {
   candidateId: string;
   userId: string;
 }) {
-  const result = await prisma.memoryCandidate.updateMany({
-    where: {
-      id: input.candidateId,
-      userId: input.userId,
-      status: "pending",
-    },
-    data: { status: "ignored" },
+  const candidate = await prisma.memoryCandidate.findFirst({
+    where: { id: input.candidateId, userId: input.userId },
   });
 
-  if (result.count !== 1) {
-    const existing = await prisma.memoryCandidate.findFirst({
-      where: { id: input.candidateId, userId: input.userId },
-    });
-
-    if (!existing) {
-      throw new Error("未找到记忆候选");
-    }
+  if (!candidate) {
+    throw new Error("未找到记忆候选");
   }
+
+  if (candidate.status !== "pending") {
+    throw new Error("记忆候选已处理");
+  }
+
+  await prisma.memoryCandidate.update({
+    where: { id: candidate.id },
+    data: { status: "ignored" },
+  });
 
   return { status: "ignored" };
 }

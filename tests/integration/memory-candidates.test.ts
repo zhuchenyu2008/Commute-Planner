@@ -32,6 +32,7 @@ describe("memory candidate actions", () => {
         name: "Memory User",
         passwordHash: "hash",
       },
+      include: { settings: true },
     });
     const candidate = await prisma.memoryCandidate.create({
       data: {
@@ -76,6 +77,7 @@ describe("memory candidate actions", () => {
         name: "Ignore User",
         passwordHash: "hash",
       },
+      include: { settings: true },
     });
     const candidate = await prisma.memoryCandidate.create({
       data: {
@@ -100,5 +102,86 @@ describe("memory candidate actions", () => {
     ).resolves.toMatchObject({
       status: "ignored",
     });
+  });
+
+  it("rejects confirming an already handled candidate without duplicating memory", async () => {
+    const { POST } = await import(
+      "@app/api/memory-candidates/[candidateId]/confirm/route"
+    );
+    const user = await prisma.user.create({
+      data: {
+        email: `confirm-handled-memory-${Date.now()}@example.com`,
+        name: "Handled Confirm User",
+        passwordHash: "hash",
+      },
+      include: { settings: true },
+    });
+    const candidate = await prisma.memoryCandidate.create({
+      data: {
+        userId: user.id,
+        kind: "origin",
+        label: "已确认出发地",
+        valueJson: JSON.stringify({ originName: "外事学校" }),
+        status: "confirmed",
+      },
+    });
+    await prisma.memory.create({
+      data: {
+        userId: user.id,
+        kind: candidate.kind,
+        label: candidate.label,
+        valueJson: candidate.valueJson,
+      },
+    });
+    getCurrentUserMock.mockResolvedValue(user);
+
+    const response = await POST(new Request("http://localhost"), {
+      params: Promise.resolve({ candidateId: candidate.id }),
+    });
+    const payload = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(payload).toMatchObject({ error: "记忆候选已处理" });
+    await expect(
+      prisma.memory.count({ where: { userId: user.id, label: candidate.label } })
+    ).resolves.toBe(1);
+    await expect(
+      prisma.memoryCandidate.findUniqueOrThrow({ where: { id: candidate.id } })
+    ).resolves.toMatchObject({ status: "confirmed" });
+  });
+
+  it("rejects ignoring an already handled candidate without changing status", async () => {
+    const { POST } = await import(
+      "@app/api/memory-candidates/[candidateId]/ignore/route"
+    );
+    const user = await prisma.user.create({
+      data: {
+        email: `ignore-handled-memory-${Date.now()}@example.com`,
+        name: "Handled Ignore User",
+        passwordHash: "hash",
+      },
+      include: { settings: true },
+    });
+    const candidate = await prisma.memoryCandidate.create({
+      data: {
+        userId: user.id,
+        kind: "preference",
+        label: "已确认偏好",
+        valueJson: JSON.stringify({ routePreference: "balanced" }),
+        status: "confirmed",
+      },
+    });
+    getCurrentUserMock.mockResolvedValue(user);
+
+    const response = await POST(new Request("http://localhost"), {
+      params: Promise.resolve({ candidateId: candidate.id }),
+    });
+    const payload = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(payload).toMatchObject({ error: "记忆候选已处理" });
+    await expect(
+      prisma.memoryCandidate.findUniqueOrThrow({ where: { id: candidate.id } })
+    ).resolves.toMatchObject({ status: "confirmed" });
   });
 });
