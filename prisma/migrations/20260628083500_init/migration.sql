@@ -128,7 +128,8 @@ CREATE TABLE "TripLeg" (
     "updatedAt" DATETIME NOT NULL,
     CONSTRAINT "TripLeg_tripId_fkey" FOREIGN KEY ("tripId") REFERENCES "Trip" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "TripLeg_fromStopId_fkey" FOREIGN KEY ("fromStopId") REFERENCES "TripStop" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
-    CONSTRAINT "TripLeg_toStopId_fkey" FOREIGN KEY ("toStopId") REFERENCES "TripStop" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    CONSTRAINT "TripLeg_toStopId_fkey" FOREIGN KEY ("toStopId") REFERENCES "TripStop" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT "TripLeg_selectedCandidateId_fkey" FOREIGN KEY ("selectedCandidateId") REFERENCES "RouteCandidate" ("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
 
 -- CreateTable
@@ -327,10 +328,13 @@ CREATE INDEX "RouteCandidate_mode_idx" ON "RouteCandidate"("mode");
 CREATE INDEX "RouteCandidate_selected_idx" ON "RouteCandidate"("selected");
 
 -- CreateIndex
+CREATE INDEX "RouteSegment_legId_order_idx" ON "RouteSegment"("legId", "order");
+
+-- CreateIndex
 CREATE INDEX "RouteSegment_candidateId_idx" ON "RouteSegment"("candidateId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "RouteSegment_legId_order_key" ON "RouteSegment"("legId", "order");
+CREATE UNIQUE INDEX "RouteSegment_candidateId_order_key" ON "RouteSegment"("candidateId", "order");
 
 -- CreateIndex
 CREATE INDEX "BufferComponent_legId_idx" ON "BufferComponent"("legId");

@@ -165,7 +165,8 @@ model TripLeg {
   trip                  Trip               @relation(fields: [tripId], references: [id], onDelete: Cascade)
   fromStop              TripStop?          @relation("FromStop", fields: [fromStopId], references: [id], onDelete: SetNull)
   toStop                TripStop           @relation("ToStop", fields: [toStopId], references: [id], onDelete: Restrict)
-  routeCandidates       RouteCandidate[]
+  routeCandidates       RouteCandidate[]   @relation("LegRouteCandidates")
+  selectedCandidate     RouteCandidate?    @relation("SelectedRouteCandidate", fields: [selectedCandidateId], references: [id], onDelete: SetNull)
   routeSegments         RouteSegment[]
   bufferComponents      BufferComponent[]
   reminderJobs          ReminderJob[]
@@ -192,8 +193,9 @@ model RouteCandidate {
   rationale       String
   sourceJson      String?
   createdAt       DateTime       @default(now())
-  leg             TripLeg        @relation(fields: [legId], references: [id], onDelete: Cascade)
+  leg             TripLeg        @relation("LegRouteCandidates", fields: [legId], references: [id], onDelete: Cascade)
   segments        RouteSegment[]
+  selectedForLegs TripLeg[]      @relation("SelectedRouteCandidate")
 
   @@index([legId])
   @@index([mode])
@@ -214,7 +216,8 @@ model RouteSegment {
   leg         TripLeg         @relation(fields: [legId], references: [id], onDelete: Cascade)
   candidate   RouteCandidate? @relation(fields: [candidateId], references: [id], onDelete: SetNull)
 
-  @@unique([legId, order])
+  @@unique([candidateId, order])
+  @@index([legId, order])
   @@index([candidateId])
 }
 

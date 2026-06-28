@@ -33,4 +33,14 @@ describe("Prisma schema", () => {
     expect(schema).toContain("fromStopId      String?");
     expect(schema).toContain("toStopId        String");
   });
+
+  it("allows each route candidate to own its ordered segment timeline", () => {
+    expect(schema).toContain('routeCandidates       RouteCandidate[]   @relation("LegRouteCandidates")');
+    expect(schema).toContain('selectedCandidate     RouteCandidate?    @relation("SelectedRouteCandidate", fields: [selectedCandidateId], references: [id], onDelete: SetNull)');
+    expect(schema).toContain('leg             TripLeg        @relation("LegRouteCandidates", fields: [legId], references: [id], onDelete: Cascade)');
+    expect(schema).toContain('selectedForLegs TripLeg[]      @relation("SelectedRouteCandidate")');
+    expect(schema).toContain("@@unique([candidateId, order])");
+    expect(schema).toContain("@@index([legId, order])");
+    expect(schema).not.toContain("@@unique([legId, order])");
+  });
 });
