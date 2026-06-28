@@ -1,3 +1,91 @@
+import Link from "next/link";
+import { CloudSun, MapPin, Navigation, Sparkles } from "lucide-react";
+import { AppShell } from "@/components/app-shell";
+import { GlassCard } from "@/components/glass-card";
+import { CommuteInput } from "@/components/home/commute-input";
+
 export default function HomePage() {
-  return <main>Commute Planner</main>;
+  return (
+    <AppShell active="home">
+      <div className="mx-auto flex max-w-4xl flex-col gap-8">
+        <header className="flex items-start justify-between gap-4">
+          <div className="space-y-1">
+            <p className="flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.05em] text-[#434655]">
+              <MapPin aria-hidden="true" className="size-4 text-[#2563eb]" />
+              Current location
+            </p>
+            <h1 className="text-3xl font-bold leading-tight text-[#191c1e] md:text-4xl">
+              Plan a commute
+            </h1>
+          </div>
+          <GlassCard className="flex shrink-0 items-center gap-2 rounded-xl p-3">
+            <CloudSun aria-hidden="true" className="size-6 text-[#F59E0B]" />
+            <div>
+              <p className="text-sm font-bold text-[#191c1e]">24 C</p>
+              <p className="text-xs font-medium text-[#434655]">
+                Light rain later
+              </p>
+            </div>
+          </GlassCard>
+        </header>
+
+        <section className="py-4">
+          <CommuteInput />
+        </section>
+
+        <section className="grid gap-4 md:grid-cols-[1.3fr_1fr]">
+          <GlassCard className="p-6">
+            <div className="flex items-center justify-between gap-4">
+              <span className="inline-flex items-center rounded-full bg-[#10B981]/10 px-3 py-1 text-xs font-bold text-[#10B981]">
+                Ready
+              </span>
+              <span className="text-sm font-bold text-[#2563eb]">
+                Agent assisted
+              </span>
+            </div>
+            <div className="mt-5 space-y-2">
+              <h2 className="text-2xl font-semibold text-[#191c1e]">
+                Tell the agent where and when.
+              </h2>
+              <p className="text-sm leading-6 text-[#434655]">
+                It will create the trip, calculate buffers, schedule reminders,
+                and keep monitoring route conditions.
+              </p>
+            </div>
+            <div className="mt-6 flex items-center justify-between border-t border-[#c3c6d7]/50 pt-4">
+              <div className="flex -space-x-2">
+                <div className="flex size-9 items-center justify-center rounded-full border-2 border-white bg-[#f2f4f6] text-[#434655]">
+                  <Navigation aria-hidden="true" className="size-4" />
+                </div>
+                <div className="flex size-9 items-center justify-center rounded-full border-2 border-white bg-[#2563eb] text-white">
+                  <Sparkles aria-hidden="true" className="size-4" />
+                </div>
+              </div>
+              <Link
+                className="rounded-full bg-[#2563eb] px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#004ac6]"
+                href="/history"
+              >
+                View history
+              </Link>
+            </div>
+          </GlassCard>
+
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-1">
+            <GlassCard className="p-4">
+              <p className="text-sm font-bold text-[#191c1e]">Office</p>
+              <p className="mt-1 text-xs font-medium text-[#434655]">
+                Use your saved origin
+              </p>
+            </GlassCard>
+            <GlassCard className="p-4">
+              <p className="text-sm font-bold text-[#191c1e]">Routine memory</p>
+              <p className="mt-1 text-xs font-medium text-[#434655]">
+                Confirm preferences
+              </p>
+            </GlassCard>
+          </div>
+        </section>
+      </div>
+    </AppShell>
+  );
 }
