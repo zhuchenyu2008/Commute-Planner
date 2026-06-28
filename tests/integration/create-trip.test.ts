@@ -334,4 +334,64 @@ describe("createPlannedTrip", () => {
       title: "家-办公室",
     });
   });
+  it("orders title endpoints by stop and leg order values", async () => {
+    const user = await prisma.user.create({
+      data: {
+        email: `title-order-${Date.now()}@example.com`,
+        name: "Ordered Title User",
+        passwordHash: "hash",
+      },
+    });
+
+    const trip = await createPlannedTrip({
+      userId: user.id,
+      rawPrompt: "乱序输入但按 order 从家到办公室",
+      timezone: "Asia/Shanghai",
+      title: "乱序行程",
+      stops: [
+        {
+          order: 2,
+          name: "办公室",
+          lngLat: "121.3,29.3",
+          kind: "destination",
+        },
+        {
+          order: 0,
+          name: "家",
+          lngLat: "121.1,29.1",
+          kind: "origin",
+        },
+        {
+          order: 1,
+          name: "咖啡店",
+          lngLat: "121.2,29.2",
+          kind: "waypoint",
+        },
+      ],
+      legs: [
+        {
+          order: 1,
+          originName: "咖啡店",
+          originLngLat: "121.2,29.2",
+          destinationName: "办公室",
+          destinationLngLat: "121.3,29.3",
+          routeMinutes: 20,
+        },
+        {
+          order: 0,
+          originName: "家",
+          originLngLat: "121.1,29.1",
+          destinationName: "咖啡店",
+          destinationLngLat: "121.2,29.2",
+          routeMinutes: 15,
+        },
+      ],
+    });
+
+    await expect(
+      prisma.trip.findUniqueOrThrow({ where: { id: trip.id } })
+    ).resolves.toMatchObject({
+      title: "家-办公室",
+    });
+  });
 });

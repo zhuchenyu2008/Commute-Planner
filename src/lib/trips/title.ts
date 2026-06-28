@@ -5,7 +5,7 @@ type NormalizeRouteTitleInput = {
 };
 
 function cleanEndpoint(value?: string | null) {
-  return value?.replace(/\s+/g, "").trim() ?? "";
+  return value?.trim().replace(/\s+/g, " ") ?? "";
 }
 
 export function normalizeRouteTitle({

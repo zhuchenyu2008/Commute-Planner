@@ -62,6 +62,13 @@ function serialize(value: unknown) {
   return value === undefined ? undefined : JSON.stringify(value);
 }
 
+function byInputOrder<T extends { order?: number | null }>(items: T[]) {
+  return [...items].sort(
+    (left, right) =>
+      (left.order ?? items.indexOf(left)) - (right.order ?? items.indexOf(right))
+  );
+}
+
 function defaultLatestDepartAt(
   input: CreatePlannedTripInput,
   legInput: PlannedTripLegInput,
@@ -78,10 +85,12 @@ export async function createPlannedTrip(input: CreatePlannedTripInput) {
   validateInput(input);
 
   return prisma.$transaction(async (tx) => {
-    const firstLeg = input.legs?.[0];
-    const firstStop = input.stops[0];
-    const lastStop = input.stops[input.stops.length - 1];
-    const lastLeg = input.legs?.[input.legs.length - 1];
+    const orderedStops = byInputOrder(input.stops);
+    const orderedLegs = byInputOrder(input.legs ?? []);
+    const firstLeg = orderedLegs[0];
+    const firstStop = orderedStops[0];
+    const lastStop = orderedStops[orderedStops.length - 1];
+    const lastLeg = orderedLegs[orderedLegs.length - 1];
     const normalizedTitle = normalizeRouteTitle({
       title: input.title,
       originName: firstLeg?.originName ?? firstStop?.name,
