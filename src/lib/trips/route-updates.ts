@@ -450,12 +450,22 @@ async function findOwnedLeg(input: {
   legOrder?: number;
 }) {
   await findOwnedTrip(input.tripId, input.userId);
-  const leg = await prisma.tripLeg.findFirst({
-    where: {
-      tripId: input.tripId,
-      ...(input.legId ? { id: input.legId } : { order: input.legOrder ?? 0 }),
-    },
-  });
+  const legById = input.legId
+    ? await prisma.tripLeg.findFirst({
+        where: {
+          tripId: input.tripId,
+          id: input.legId,
+        },
+      })
+    : null;
+  const leg =
+    legById ??
+    (await prisma.tripLeg.findFirst({
+      where: {
+        tripId: input.tripId,
+        order: input.legOrder ?? 0,
+      },
+    }));
 
   if (!leg) {
     throw new Error("Trip leg not found.");
@@ -466,14 +476,22 @@ async function findOwnedLeg(input: {
 
 export async function selectRouteCandidate(input: SelectRouteCandidateInput) {
   const leg = await findOwnedLeg(input);
-  const candidate = await prisma.routeCandidate.findFirst({
-    where: {
-      legId: leg.id,
-      ...(input.candidateId
-        ? { id: input.candidateId }
-        : { key: input.candidateKey ?? "leg-0-selected" }),
-    },
-  });
+  const candidateById = input.candidateId
+    ? await prisma.routeCandidate.findFirst({
+        where: {
+          legId: leg.id,
+          id: input.candidateId,
+        },
+      })
+    : null;
+  const candidate =
+    candidateById ??
+    (await prisma.routeCandidate.findFirst({
+      where: {
+        legId: leg.id,
+        key: input.candidateKey ?? `leg-${leg.order}-selected`,
+      },
+    }));
 
   if (!candidate) {
     throw new Error("Route candidate not found.");

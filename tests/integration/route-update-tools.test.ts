@@ -5,6 +5,7 @@ import {
   createMemoryCandidateForTrip,
   replaceReminderSchedule,
   replaceTripRoute,
+  selectRouteCandidate,
   updateTripSummary,
 } from "@/lib/trips/route-updates";
 import { ensureTestDatabase } from "./test-db";
@@ -244,6 +245,237 @@ describe("route update helpers", () => {
         original.reminderJobs.some((oldJob) => oldJob.id === job.id)
       )
     ).toBe(false);
+  });
+
+  it("regenerates reminders by leg order when an agent sends a stale leg id after route replacement", async () => {
+    const user = await prisma.user.create({
+      data: {
+        email: `route-stale-leg-${Date.now()}@example.com`,
+        name: "Route Stale Leg User",
+        passwordHash: "hash",
+      },
+    });
+    const trip = await createPlannedTrip({
+      userId: user.id,
+      rawPrompt: "Arrive at school by six.",
+      timezone: "Asia/Shanghai",
+      title: "Home-School",
+      finalStopName: "School",
+      targetArriveAt: new Date("2026-07-04T10:00:00.000Z"),
+      stops: [
+        {
+          order: 1,
+          name: "Home",
+          lngLat: "121.1,29.1",
+          kind: "origin",
+        },
+        {
+          order: 2,
+          name: "School",
+          lngLat: "121.2,29.2",
+          kind: "destination",
+          targetArriveAt: new Date("2026-07-04T10:00:00.000Z"),
+        },
+      ],
+      legs: [
+        {
+          order: 1,
+          originName: "Home",
+          originLngLat: "121.1,29.1",
+          destinationName: "School",
+          destinationLngLat: "121.2,29.2",
+          routeMinutes: 20,
+          latestDepartAt: new Date("2026-07-04T09:30:00.000Z"),
+          bufferComponents: [
+            {
+              category: "arrival",
+              label: "Original arrival",
+              minutes: 5,
+              reason: "Original buffer.",
+            },
+          ],
+        },
+      ],
+    });
+    const originalLeg = await prisma.tripLeg.findFirstOrThrow({
+      where: { tripId: trip.id, order: 1 },
+    });
+
+    await replaceTripRoute({
+      tripId: trip.id,
+      userId: user.id,
+      title: "Home-School",
+      finalStopName: "School",
+      targetArriveAt: new Date("2026-07-04T09:00:00.000Z"),
+      stops: [
+        {
+          order: 1,
+          name: "Home",
+          lngLat: "121.1,29.1",
+          kind: "origin",
+        },
+        {
+          order: 2,
+          name: "School",
+          lngLat: "121.2,29.2",
+          kind: "destination",
+          targetArriveAt: new Date("2026-07-04T09:00:00.000Z"),
+        },
+      ],
+      legs: [
+        {
+          order: 1,
+          originName: "Home",
+          originLngLat: "121.1,29.1",
+          destinationName: "School",
+          destinationLngLat: "121.2,29.2",
+          routeMinutes: 20,
+          latestDepartAt: new Date("2026-07-04T08:30:00.000Z"),
+          bufferComponents: [
+            {
+              category: "arrival",
+              label: "Updated arrival",
+              minutes: 5,
+              reason: "Updated buffer.",
+            },
+          ],
+        },
+      ],
+    });
+    const currentLeg = await prisma.tripLeg.findFirstOrThrow({
+      where: { tripId: trip.id, order: 1 },
+    });
+
+    const reminders = await replaceReminderSchedule({
+      tripId: trip.id,
+      userId: user.id,
+      legId: originalLeg.id,
+      legOrder: 1,
+      cadenceMinutes: [10, 0],
+    });
+
+    expect(currentLeg.id).not.toBe(originalLeg.id);
+    expect(reminders).toHaveLength(2);
+    expect(new Set(reminders.map((job) => job.legId))).toEqual(
+      new Set([currentLeg.id])
+    );
+    expect(reminders.map((job) => job.scheduledFor)).toEqual([
+      new Date("2026-07-04T08:20:00.000Z"),
+      new Date("2026-07-04T08:30:00.000Z"),
+    ]);
+  });
+
+  it("selects a replacement route candidate by key when an agent sends stale leg and candidate ids", async () => {
+    const user = await prisma.user.create({
+      data: {
+        email: `route-stale-candidate-${Date.now()}@example.com`,
+        name: "Route Stale Candidate User",
+        passwordHash: "hash",
+      },
+    });
+    const trip = await createPlannedTrip({
+      userId: user.id,
+      rawPrompt: "Arrive at school by six.",
+      timezone: "Asia/Shanghai",
+      title: "Home-School",
+      finalStopName: "School",
+      stops: [
+        {
+          order: 1,
+          name: "Home",
+          lngLat: "121.1,29.1",
+          kind: "origin",
+        },
+        {
+          order: 2,
+          name: "School",
+          lngLat: "121.2,29.2",
+          kind: "destination",
+        },
+      ],
+      legs: [
+        {
+          order: 1,
+          originName: "Home",
+          originLngLat: "121.1,29.1",
+          destinationName: "School",
+          destinationLngLat: "121.2,29.2",
+          routeMinutes: 20,
+          bufferComponents: [
+            {
+              category: "arrival",
+              label: "Original arrival",
+              minutes: 5,
+              reason: "Original buffer.",
+            },
+          ],
+        },
+      ],
+    });
+    const originalLeg = await prisma.tripLeg.findFirstOrThrow({
+      where: { tripId: trip.id, order: 1 },
+      include: { selectedCandidate: true },
+    });
+
+    await replaceTripRoute({
+      tripId: trip.id,
+      userId: user.id,
+      title: "Home-School",
+      finalStopName: "School",
+      stops: [
+        {
+          order: 1,
+          name: "Home",
+          lngLat: "121.1,29.1",
+          kind: "origin",
+        },
+        {
+          order: 2,
+          name: "School",
+          lngLat: "121.2,29.2",
+          kind: "destination",
+        },
+      ],
+      legs: [
+        {
+          order: 1,
+          originName: "Home",
+          originLngLat: "121.1,29.1",
+          destinationName: "School",
+          destinationLngLat: "121.2,29.2",
+          routeMinutes: 18,
+          routeTitle: "Updated route",
+          bufferComponents: [
+            {
+              category: "arrival",
+              label: "Updated arrival",
+              minutes: 5,
+              reason: "Updated buffer.",
+            },
+          ],
+        },
+      ],
+    });
+    const currentLeg = await prisma.tripLeg.findFirstOrThrow({
+      where: { tripId: trip.id, order: 1 },
+      include: { selectedCandidate: true },
+    });
+
+    const selected = await selectRouteCandidate({
+      tripId: trip.id,
+      userId: user.id,
+      legId: originalLeg.id,
+      legOrder: 1,
+      candidateId: originalLeg.selectedCandidateId ?? undefined,
+      candidateKey: "leg-1-selected",
+    });
+
+    expect(currentLeg.id).not.toBe(originalLeg.id);
+    expect(currentLeg.selectedCandidateId).not.toBe(
+      originalLeg.selectedCandidateId
+    );
+    expect(selected.id).toBe(currentLeg.selectedCandidateId);
+    expect(selected.title).toBe("Updated route");
   });
 
   it("deduplicates and normalizes replacement reminder cadence minutes", async () => {
