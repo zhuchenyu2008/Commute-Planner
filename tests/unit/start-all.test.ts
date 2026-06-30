@@ -13,7 +13,7 @@ type StartAllModule = {
   envDocumentToObject: (document: EnvDocument) => Record<string, string>;
   applyGeneratedDefaults: (
     values: Record<string, string>,
-    generator: { token: (bytes: number) => string }
+    generator?: { token: (bytes: number) => string }
   ) => {
     values: Record<string, string>;
     generated: {
@@ -46,12 +46,23 @@ describe("native one-click deployment config", () => {
     const { getEnvValue, parseDotEnv, serializeDotEnv, setEnvValue } =
       await loadStartAll();
 
-    const original = [
+    const original =
+      [
+        "# Local database",
+        "DATABASE_URL=file:./old.db",
+        "",
+        "AMAP_API_KEY=",
+        "SMTP_HOST=smtp.example.com"
+      ].join("\n") + "\n";
+
+    const expected = [
       "# Local database",
-      "DATABASE_URL=file:./old.db",
+      "DATABASE_URL=file:./data/commute.db",
       "",
       "AMAP_API_KEY=",
-      "SMTP_HOST=smtp.example.com"
+      "SMTP_HOST=smtp.example.com",
+      "OPENAI_MODEL=gpt-4o-mini",
+      ""
     ].join("\n");
 
     let document = parseDotEnv(original);
@@ -60,12 +71,34 @@ describe("native one-click deployment config", () => {
     document = setEnvValue(document, "DATABASE_URL", "file:./data/commute.db");
     document = setEnvValue(document, "OPENAI_MODEL", "gpt-4o-mini");
 
-    expect(serializeDotEnv(document)).toContain("# Local database");
-    expect(serializeDotEnv(document)).toContain(
-      "DATABASE_URL=file:./data/commute.db"
+    expect(serializeDotEnv(document)).toBe(expected);
+  });
+
+  it("uses the last duplicate env key when reading and updating values", async () => {
+    const {
+      envDocumentToObject,
+      getEnvValue,
+      parseDotEnv,
+      serializeDotEnv,
+      setEnvValue
+    } = await loadStartAll();
+
+    let document = parseDotEnv(
+      ["OPENAI_MODEL=old", "AMAP_API_KEY=amap-key", "OPENAI_MODEL=new"].join(
+        "\n"
+      )
     );
-    expect(serializeDotEnv(document)).toContain("SMTP_HOST=smtp.example.com");
-    expect(serializeDotEnv(document)).toContain("OPENAI_MODEL=gpt-4o-mini");
+
+    expect(getEnvValue(document, "OPENAI_MODEL")).toBe("new");
+
+    document = setEnvValue(document, "OPENAI_MODEL", "final");
+
+    expect(serializeDotEnv(document)).toBe(
+      ["OPENAI_MODEL=old", "AMAP_API_KEY=amap-key", "OPENAI_MODEL=final"].join(
+        "\n"
+      )
+    );
+    expect(envDocumentToObject(document).OPENAI_MODEL).toBe("final");
   });
 
   it("generates seed credentials and scheduler secret when they are empty", async () => {
@@ -89,6 +122,7 @@ describe("native one-click deployment config", () => {
     );
 
     expect(result.values.DATABASE_URL).toBe("file:./data/commute.db");
+    expect(result.values.DEFAULT_CITY).toBe("宁波");
     expect(result.values.DEFAULT_TIMEZONE).toBe("Asia/Shanghai");
     expect(result.values.OPENAI_BASE_URL).toBe("https://api.openai.com/v1");
     expect(result.values.OPENAI_MODEL).toBe("gpt-4o-mini");
@@ -100,6 +134,29 @@ describe("native one-click deployment config", () => {
       seedUserPassword: "token-18",
       schedulerTickSecret: "token-24"
     });
+  });
+
+  it("generates credentials with the default random generator", async () => {
+    const { applyGeneratedDefaults } = await loadStartAll();
+
+    const result = applyGeneratedDefaults({
+      DATABASE_URL: "",
+      DEFAULT_CITY: "",
+      DEFAULT_TIMEZONE: "",
+      OPENAI_BASE_URL: "",
+      OPENAI_MODEL: "",
+      SEED_USER_EMAIL: "",
+      SEED_USER_PASSWORD: "",
+      SCHEDULER_TICK_SECRET: ""
+    });
+
+    expect(result.values.SEED_USER_EMAIL).toMatch(
+      /^user-[A-Za-z0-9_-]+@example\.local$/
+    );
+    expect(result.values.SEED_USER_PASSWORD).toEqual(expect.any(String));
+    expect(result.values.SEED_USER_PASSWORD).not.toBe("");
+    expect(result.values.SCHEDULER_TICK_SECRET).toEqual(expect.any(String));
+    expect(result.values.SCHEDULER_TICK_SECRET).not.toBe("");
   });
 
   it("requires AMap and AI agent settings before deployment can start", async () => {

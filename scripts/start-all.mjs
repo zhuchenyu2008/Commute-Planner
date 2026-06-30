@@ -58,21 +58,20 @@ export function serializeDotEnv(document) {
 }
 
 export function getEnvValue(document, key) {
-  const line = document.lines.find(
-    (item) => item.type === "entry" && item.key === key
-  );
+  const line = findLastEnvEntry(document.lines, key);
 
   return line?.value;
 }
 
 export function setEnvValue(document, key, value) {
   const lines = [...document.lines];
-  const index = lines.findIndex(
-    (line) => line.type === "entry" && line.key === key
-  );
+  const index = findLastEnvEntryIndex(lines, key);
 
   if (index === -1) {
-    lines.push({ type: "entry", key, value });
+    const insertAt = isTrailingBlankRawLine(lines)
+      ? lines.length - 1
+      : lines.length;
+    lines.splice(insertAt, 0, { type: "entry", key, value });
   } else {
     lines[index] = { ...lines[index], value };
   }
@@ -98,7 +97,10 @@ export function createRandomGenerator() {
   };
 }
 
-export function applyGeneratedDefaults(values, generator) {
+export function applyGeneratedDefaults(
+  values,
+  generator = createRandomGenerator()
+) {
   const nextValues = { ...values };
   const generated = {};
 
@@ -132,4 +134,32 @@ export function validateRequiredConfig(values) {
 
 function isEmpty(value) {
   return value === undefined || value.trim() === "";
+}
+
+function findLastEnvEntry(lines, key) {
+  const index = findLastEnvEntryIndex(lines, key);
+
+  if (index === -1) {
+    return undefined;
+  }
+
+  return lines[index];
+}
+
+function findLastEnvEntryIndex(lines, key) {
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index];
+
+    if (line.type === "entry" && line.key === key) {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
+function isTrailingBlankRawLine(lines) {
+  const lastLine = lines.at(-1);
+
+  return lastLine?.type === "raw" && lastLine.raw === "";
 }
