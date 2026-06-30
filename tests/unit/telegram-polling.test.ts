@@ -180,12 +180,20 @@ describe("telegram polling", () => {
     });
   });
 
-  it("rejects when long polling fails for a non-abort error", async () => {
+  it("keeps polling after a transient non-abort error", async () => {
+    const pollingError = new Error("network failed");
+    const abortError = Object.assign(new Error("aborted"), {
+      name: "AbortError",
+    });
     const bot: TelegramBotClient = {
-      getUpdates: vi.fn().mockRejectedValue(new Error("network failed")),
+      getUpdates: vi
+        .fn()
+        .mockRejectedValueOnce(pollingError)
+        .mockRejectedValueOnce(abortError),
       sendMessage: vi.fn(),
       answerCallbackQuery: vi.fn(),
     };
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
     telegramMocks.createTelegramBotClient.mockReturnValue(bot);
     telegramMocks.getNextTelegramOffset.mockResolvedValue(50);
@@ -196,6 +204,12 @@ describe("telegram polling", () => {
         timeoutSeconds: 1,
         idleDelayMs: 0,
       })
-    ).rejects.toThrow("network failed");
+    ).resolves.toBeUndefined();
+
+    expect(bot.getUpdates).toHaveBeenCalledTimes(2);
+    expect(consoleError).toHaveBeenCalledWith(
+      "Telegram polling failed; retrying.",
+      pollingError
+    );
   });
 });

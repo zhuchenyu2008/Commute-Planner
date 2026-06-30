@@ -91,7 +91,7 @@ export async function runTelegramPolling(input: {
       });
     } catch (error) {
       if (isAbortError(error)) return;
-      throw error;
+      console.error("Telegram polling failed; retrying.", error);
     }
 
     await sleep(idleDelayMs, input.signal);

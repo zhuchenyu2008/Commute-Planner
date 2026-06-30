@@ -1,4 +1,6 @@
-import { runTelegramPolling } from "@/lib/telegram/polling";
+import { loadEnvConfig } from "@next/env";
+
+loadEnvConfig(process.cwd());
 
 const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
 
@@ -16,19 +18,26 @@ if (!token) {
   process.exit(0);
 }
 
+const botToken = token;
 const controller = new AbortController();
 const abortPolling = () => controller.abort();
 
 process.once("SIGINT", abortPolling);
 process.once("SIGTERM", abortPolling);
 
-runTelegramPolling({
-  token,
-  timeoutSeconds: parseTimeoutSeconds(
-    process.env.TELEGRAM_POLL_TIMEOUT_SECONDS
-  ),
-  signal: controller.signal,
-}).catch((error: unknown) => {
+async function main() {
+  const { runTelegramPolling } = await import("@/lib/telegram/polling");
+
+  await runTelegramPolling({
+    token: botToken,
+    timeoutSeconds: parseTimeoutSeconds(
+      process.env.TELEGRAM_POLL_TIMEOUT_SECONDS
+    ),
+    signal: controller.signal,
+  });
+}
+
+main().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
   console.error(`Telegram 轮询 worker 失败：${message}`);
   process.exit(1);

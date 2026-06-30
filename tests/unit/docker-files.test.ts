@@ -38,6 +38,7 @@ describe("Docker configuration", () => {
     const compose = readFileSync("docker-compose.yml", "utf8");
     const packageJson = readFileSync("package.json", "utf8");
     const readme = readFileSync("README.md", "utf8");
+    const telegramPollScript = readFileSync("scripts/telegram-poll.ts", "utf8");
     const migrateBlock = readComposeServiceBlock(compose, "migrate");
     const webBlock = readComposeServiceBlock(compose, "web");
     const schedulerBlock = readComposeServiceBlock(compose, "scheduler");
@@ -76,5 +77,13 @@ describe("Docker configuration", () => {
     expect(readme).toContain("service_completed_successfully");
     expect(readme).toContain("/trips");
     expect(readme).toContain("/cancel");
+
+    expect(telegramPollScript).toContain("loadEnvConfig(process.cwd())");
+    expect(telegramPollScript).not.toContain(
+      'import { runTelegramPolling } from "@/lib/telegram/polling"'
+    );
+    expect(telegramPollScript.indexOf("loadEnvConfig(process.cwd())")).toBeLessThan(
+      telegramPollScript.indexOf('import("@/lib/telegram/polling")')
+    );
   });
 });
