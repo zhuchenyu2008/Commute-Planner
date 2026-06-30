@@ -49,9 +49,9 @@ describe("Telegram Bot API client", () => {
 
     await client.sendMessage({
       chatId: "123",
-      text: "选择行程",
+      text: "\u9009\u62e9\u884c\u7a0b",
       replyMarkup: {
-        inline_keyboard: [[{ text: "切换到此行程", callback_data: "sw:trip1" }]],
+        inline_keyboard: [[{ text: "\u5207\u6362\u5230\u6b64\u884c\u7a0b", callback_data: "sw:trip1" }]],
       },
     });
 
@@ -61,10 +61,10 @@ describe("Telegram Bot API client", () => {
         method: "POST",
         body: JSON.stringify({
           chat_id: "123",
-          text: "选择行程",
+          text: "\u9009\u62e9\u884c\u7a0b",
           disable_web_page_preview: true,
           reply_markup: {
-            inline_keyboard: [[{ text: "切换到此行程", callback_data: "sw:trip1" }]],
+            inline_keyboard: [[{ text: "\u5207\u6362\u5230\u6b64\u884c\u7a0b", callback_data: "sw:trip1" }]],
           },
         }),
       })
@@ -79,7 +79,7 @@ describe("Telegram Bot API client", () => {
 
     await client.answerCallbackQuery({
       callbackQueryId: "callback-1",
-      text: "已切换",
+      text: "\u5df2\u5207\u6362",
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
@@ -88,7 +88,7 @@ describe("Telegram Bot API client", () => {
         method: "POST",
         body: JSON.stringify({
           callback_query_id: "callback-1",
-          text: "已切换",
+          text: "\u5df2\u5207\u6362",
           show_alert: false,
         }),
       })
@@ -103,11 +103,28 @@ describe("Telegram Bot API client", () => {
     );
     const client = createTelegramBotClient({ token: "token" });
 
-    await expect(client.getUpdates({ offset: 1 })).rejects.toThrow(
-      TelegramBotApiError
-    );
+    const request = client.getUpdates({ offset: 1 });
+
+    await expect(request).rejects.toThrow(TelegramBotApiError);
+    await expect(request).rejects.toThrow("Telegram getUpdates 400: Bad Request");
+  });
+
+  it("does not reuse a previous error description when the next failure has no readable description", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ ok: false, description: "Bad Request" }),
+          { status: 400 }
+        )
+      )
+      .mockResolvedValueOnce(new Response("not-json", { status: 400 }));
+    const client = createTelegramBotClient({ token: "token" });
+
     await expect(client.getUpdates({ offset: 1 })).rejects.toThrow(
       "Telegram getUpdates 400: Bad Request"
+    );
+    await expect(client.getUpdates({ offset: 2 })).rejects.toThrow(
+      "Telegram getUpdates request failed with 400"
     );
   });
 });

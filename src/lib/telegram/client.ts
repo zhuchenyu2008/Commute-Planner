@@ -36,7 +36,6 @@ export type TelegramBotClient = {
 
 export function createTelegramBotClient(input: { token: string }): TelegramBotClient {
   const baseUrl = `https://api.telegram.org/bot${input.token}`;
-  const failureDescriptions = new Map<string, string>();
 
   async function request<T>(method: string, body: Record<string, unknown>) {
     const response = await fetch(`${baseUrl}/${method}`, {
@@ -49,14 +48,10 @@ export function createTelegramBotClient(input: { token: string }): TelegramBotCl
       | null;
 
     if (!response.ok || !payload?.ok) {
-      const descriptionKey = `${method}:${response.status}`;
-      if (payload?.description) {
-        failureDescriptions.set(descriptionKey, payload.description);
-      }
       throw new TelegramBotApiError(
         method,
         response.status,
-        payload?.description ?? failureDescriptions.get(descriptionKey)
+        payload?.description
       );
     }
 
