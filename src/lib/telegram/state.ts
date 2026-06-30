@@ -205,17 +205,18 @@ export async function getNextTelegramOffset() {
 }
 
 export async function markTelegramUpdateProcessed(updateId: number) {
-  return prisma.$transaction(async (tx) => {
-    const current = await tx.telegramBotState.findUnique({
-      where: { id: "default" },
-      select: { lastUpdateId: true },
-    });
-    const lastUpdateId = Math.max(current?.lastUpdateId ?? updateId, updateId);
+  await prisma.$executeRaw`
+    INSERT INTO "TelegramBotState" ("id", "lastUpdateId", "updatedAt")
+    VALUES ('default', ${updateId}, CURRENT_TIMESTAMP)
+    ON CONFLICT("id") DO UPDATE SET
+      "lastUpdateId" = MAX(
+        COALESCE("TelegramBotState"."lastUpdateId", excluded."lastUpdateId"),
+        excluded."lastUpdateId"
+      ),
+      "updatedAt" = CURRENT_TIMESTAMP
+  `;
 
-    return tx.telegramBotState.upsert({
-      where: { id: "default" },
-      create: { id: "default", lastUpdateId },
-      update: { lastUpdateId },
-    });
+  return prisma.telegramBotState.findUniqueOrThrow({
+    where: { id: "default" },
   });
 }

@@ -197,18 +197,26 @@ describe("telegram state service", () => {
   });
 
   it("stores and returns the next Telegram offset", async () => {
-    const defaultState = await prisma.telegramBotState.findUnique({
-      where: { id: "default" },
-    });
-    if (defaultState) {
-      await prisma.telegramBotState.delete({ where: { id: "default" } });
-    }
+    await resetTelegramBotState();
 
     await expect(getNextTelegramOffset()).resolves.toBeUndefined();
     await markTelegramUpdateProcessed(42);
     await expect(getNextTelegramOffset()).resolves.toBe(43);
     await markTelegramUpdateProcessed(41);
     await expect(getNextTelegramOffset()).resolves.toBe(43);
+  });
+
+  it("keeps the Telegram offset monotonic under concurrent updates", async () => {
+    await resetTelegramBotState();
+
+    await Promise.all([
+      markTelegramUpdateProcessed(100),
+      markTelegramUpdateProcessed(99),
+      markTelegramUpdateProcessed(98),
+      markTelegramUpdateProcessed(97),
+    ]);
+
+    await expect(getNextTelegramOffset()).resolves.toBe(101);
   });
 });
 
@@ -277,4 +285,13 @@ async function markReminderJobsDone(tripId: string, count: number) {
     where: { id: { in: reminderJobs.map((job) => job.id) } },
     data: { status: "sent" },
   });
+}
+
+async function resetTelegramBotState() {
+  const defaultState = await prisma.telegramBotState.findUnique({
+    where: { id: "default" },
+  });
+  if (defaultState) {
+    await prisma.telegramBotState.delete({ where: { id: "default" } });
+  }
 }
