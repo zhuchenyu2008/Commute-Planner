@@ -282,18 +282,55 @@ function commandToString(command) {
   return command.join(" ");
 }
 
+export function createChildEnv(values, baseEnv = process.env) {
+  return { ...baseEnv, ...values };
+}
+
+export function normalizeCommand(command, platform = process.platform) {
+  const [executable, ...args] = command;
+  const normalizedExecutable =
+    platform === "win32" && executable === "npm" ? "npm.cmd" : executable;
+
+  return {
+    command: normalizedExecutable,
+    args,
+    shell: false
+  };
+}
+
+function terminateChild(child, platform = process.platform) {
+  if (platform === "win32" && child.pid) {
+    spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], {
+      stdio: "ignore",
+      shell: false
+    });
+    return;
+  }
+
+  child.kill("SIGTERM");
+}
+
 function runCommand(command, options = {}) {
   return new Promise((resolvePromise, reject) => {
     console.log(`[setup] ${commandToString(command)}`);
-    const child = spawn(command[0], command.slice(1), {
+    const normalized = normalizeCommand(command);
+    const child = spawn(normalized.command, normalized.args, {
       cwd: options.cwd,
-      env: process.env,
+      env: options.env,
       stdio: "inherit",
-      shell: process.platform === "win32"
+      shell: normalized.shell
     });
+
+    if (options.state) {
+      options.state.currentChild = child;
+    }
 
     child.on("error", reject);
     child.on("exit", (code, signal) => {
+      if (options.state?.currentChild === child) {
+        options.state.currentChild = undefined;
+      }
+
       if (code === 0) {
         resolvePromise();
         return;
@@ -323,24 +360,25 @@ function prefixOutput(stream, prefix, write) {
 }
 
 function startProcessService(service, options) {
-  const child = spawn(service.command[0], service.command.slice(1), {
+  const normalized = normalizeCommand(service.command);
+  const child = spawn(normalized.command, normalized.args, {
     cwd: options.cwd,
-    env: process.env,
+    env: options.env,
     stdio: ["inherit", "pipe", "pipe"],
-    shell: process.platform === "win32"
+    shell: normalized.shell
   });
 
   prefixOutput(child.stdout, service.name, (text) => process.stdout.write(text));
   prefixOutput(child.stderr, service.name, (text) => process.stderr.write(text));
 
   child.on("exit", (code, signal) => {
-    if (!options.stopping && code !== 0) {
+    if (!options.state.stopping && code !== 0) {
       console.error(
         `[${service.name}] exited unexpectedly with ${
           signal ? `signal ${signal}` : `exit code ${code}`
         }`
       );
-      options.stopAll(1);
+      options.state.stopAll(1);
     }
   });
 
@@ -350,6 +388,7 @@ function startProcessService(service, options) {
 function startSchedulerLoop(service, options) {
   let timer;
   let stopped = false;
+  const state = {};
 
   const runTick = async () => {
     if (stopped) {
@@ -357,7 +396,11 @@ function startSchedulerLoop(service, options) {
     }
 
     try {
-      await runCommand(service.command, { cwd: options.cwd });
+      await runCommand(service.command, {
+        cwd: options.cwd,
+        env: options.env,
+        state
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(`[scheduler] ${message}`);
@@ -375,6 +418,9 @@ function startSchedulerLoop(service, options) {
       stopped = true;
       if (timer) {
         clearTimeout(timer);
+      }
+      if (state.currentChild) {
+        terminateChild(state.currentChild);
       }
     }
   };
@@ -429,7 +475,9 @@ async function loadAndWriteConfiguration({ cwd, args }) {
 
   if (result.missing.length > 0) {
     throw new Error(
-      `Missing required configuration: ${result.missing.join(", ")}`
+      `Missing required configuration: ${result.missing.join(
+        ", "
+      )}. Saved current configuration to .env; fill the missing values and run again.`
     );
   }
 
@@ -437,7 +485,7 @@ async function loadAndWriteConfiguration({ cwd, args }) {
   return result.values;
 }
 
-async function startServices({ cwd, values }) {
+async function startServices({ cwd, values, env }) {
   const services = buildServicePlan(values);
   if (!values.TELEGRAM_BOT_TOKEN?.trim()) {
     console.log("[telegram] TELEGRAM_BOT_TOKEN is empty; Telegram worker skipped.");
@@ -451,7 +499,7 @@ async function startServices({ cwd, values }) {
     }
     state.stopping = true;
     for (const child of children) {
-      child.kill("SIGTERM");
+      terminateChild(child);
     }
     process.exitCode = exitCode;
   };
@@ -463,9 +511,9 @@ async function startServices({ cwd, values }) {
 
   for (const service of services) {
     if (service.kind === "scheduler") {
-      children.push(startSchedulerLoop(service, { cwd }));
+      children.push(startSchedulerLoop(service, { cwd, env }));
     } else {
-      children.push(startProcessService(service, { cwd, ...state }));
+      children.push(startProcessService(service, { cwd, env, state }));
     }
   }
 }
@@ -473,12 +521,13 @@ async function startServices({ cwd, values }) {
 export async function main(argv = process.argv.slice(2), cwd = process.cwd()) {
   const args = parseArgs(argv);
   const values = await loadAndWriteConfiguration({ cwd, args });
+  const env = createChildEnv(values);
 
   for (const command of getPreparationCommands()) {
-    await runCommand(command, { cwd });
+    await runCommand(command, { cwd, env });
   }
 
-  await startServices({ cwd, values });
+  await startServices({ cwd, values, env });
 }
 
 const isDirectRun =

@@ -1,6 +1,7 @@
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 type EnvDocument = unknown;
@@ -56,6 +57,15 @@ type StartAllModuleWithRuntime = StartAllModule & {
   buildServicePlan: (
     values: Record<string, string>
   ) => Array<{ name: string; command: string[]; kind: "process" | "scheduler" }>;
+  createChildEnv: (
+    values: Record<string, string>,
+    baseEnv?: Record<string, string | undefined>
+  ) => Record<string, string | undefined>;
+  normalizeCommand: (
+    command: string[],
+    platform?: NodeJS.Platform
+  ) => { command: string; args: string[]; shell: boolean };
+  main: (argv?: string[], cwd?: string) => Promise<void>;
 };
 
 async function loadRuntimeStartAll(): Promise<StartAllModuleWithRuntime> {
@@ -449,6 +459,64 @@ describe("native one-click deployment runtime planning", () => {
       .toEqual(["web", "scheduler"]);
     expect(buildServicePlan({ TELEGRAM_BOT_TOKEN: "bot-token" }).map((service) => service.name))
       .toEqual(["web", "scheduler", "telegram"]);
+  });
+
+  it("merges prepared values into child process env with prepared values winning", async () => {
+    const { createChildEnv } = await loadRuntimeStartAll();
+
+    expect(
+      createChildEnv(
+        {
+          DATABASE_URL: "file:./data/commute.db",
+          OPENAI_API_KEY: "prepared-key"
+        },
+        {
+          DATABASE_URL: "file:./parent.db",
+          PATH: "parent-path"
+        }
+      )
+    ).toEqual({
+      DATABASE_URL: "file:./data/commute.db",
+      OPENAI_API_KEY: "prepared-key",
+      PATH: "parent-path"
+    });
+  });
+
+  it("normalizes npm commands without shelling through Windows command processors", async () => {
+    const { normalizeCommand } = await loadRuntimeStartAll();
+
+    expect(normalizeCommand(["npm", "run", "start"], "win32")).toEqual({
+      command: "npm.cmd",
+      args: ["run", "start"],
+      shell: false
+    });
+    expect(normalizeCommand(["npm", "run", "start"], "linux")).toEqual({
+      command: "npm",
+      args: ["run", "start"],
+      shell: false
+    });
+  });
+
+  it("describes saved configuration when required values are still missing", async () => {
+    const { main } = await loadRuntimeStartAll();
+    const cwd = mkdtempSync(join(tmpdir(), "start-all-missing-"));
+    writeFileSync(
+      join(cwd, ".env.example"),
+      "AMAP_API_KEY=\nOPENAI_API_KEY=\nOPENAI_MODEL=\n",
+      "utf8"
+    );
+
+    try {
+      await expect(main(["--yes"], cwd)).rejects.toThrow(
+        "Saved current configuration to .env; fill the missing values and run again."
+      );
+
+      expect(readFileSync(join(cwd, ".env"), "utf8")).toContain(
+        "DATABASE_URL=file:./data/commute.db"
+      );
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
   });
 });
 
