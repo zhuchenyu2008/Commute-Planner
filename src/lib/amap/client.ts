@@ -45,6 +45,9 @@ type AmapPoi = {
 const BASE_URL = "https://restapi.amap.com/v3";
 const BICYCLING_URL = "https://restapi.amap.com/v4/direction/bicycling";
 
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
 const toPositiveMinutes = (seconds: unknown): number => {
   const durationSeconds = Number(seconds);
 
@@ -98,7 +101,12 @@ export function createRealAmapClient(options: AmapClientOptions): AmapClient {
     }
 
     return options.throttle.schedule(async () => {
-      const response = await fetchImpl(`${url}?${searchParams.toString()}`);
+      let response: Response;
+      try {
+        response = await fetchImpl(`${url}?${searchParams.toString()}`);
+      } catch (error) {
+        throw new Error(`高德请求失败：${getErrorMessage(error)}`);
+      }
 
       if (!response.ok) {
         throw new Error(`高德 HTTP 请求失败：${response.status}`);
@@ -129,7 +137,12 @@ export function createRealAmapClient(options: AmapClientOptions): AmapClient {
     }
 
     return options.throttle.schedule(async () => {
-      const response = await fetchImpl(`${BICYCLING_URL}?${searchParams.toString()}`);
+      let response: Response;
+      try {
+        response = await fetchImpl(`${BICYCLING_URL}?${searchParams.toString()}`);
+      } catch (error) {
+        throw new Error(`高德请求失败：${getErrorMessage(error)}`);
+      }
 
       if (!response.ok) {
         throw new Error(`高德 HTTP 请求失败：${response.status}`);

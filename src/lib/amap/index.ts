@@ -10,56 +10,6 @@ type AmapClientFactoryOptions = {
   realClient?: AmapClient;
 };
 
-const withFallback = (realClient: AmapClient, mockClient: AmapClient): AmapClient => ({
-  async searchPoi(request) {
-    try {
-      return await realClient.searchPoi(request);
-    } catch {
-      return mockClient.searchPoi(request);
-    }
-  },
-
-  async getPoiDetail(request) {
-    try {
-      return await realClient.getPoiDetail(request);
-    } catch {
-      return mockClient.getPoiDetail(request);
-    }
-  },
-
-  async getWeather(request) {
-    try {
-      return await realClient.getWeather(request);
-    } catch {
-      return mockClient.getWeather(request);
-    }
-  },
-
-  async getTransitRoute(request) {
-    try {
-      return await realClient.getTransitRoute(request);
-    } catch {
-      return mockClient.getTransitRoute(request);
-    }
-  },
-
-  async getWalkingRoute(request) {
-    try {
-      return await realClient.getWalkingRoute(request);
-    } catch {
-      return mockClient.getWalkingRoute(request);
-    }
-  },
-
-  async getBicyclingRoute(request) {
-    try {
-      return await realClient.getBicyclingRoute(request);
-    } catch {
-      return mockClient.getBicyclingRoute(request);
-    }
-  }
-});
-
 export function createAmapClient(
   source: EnvSource = process.env,
   options: AmapClientFactoryOptions = {}
@@ -84,7 +34,7 @@ export function createAmapClient(
       throttle: createAmapThrottle({ requestsPerSecond: 3 })
     });
 
-  return withFallback(realClient, mockClient);
+  return realClient;
 }
 
 export { createRealAmapClient } from "./client";

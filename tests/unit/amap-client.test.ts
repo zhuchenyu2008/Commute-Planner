@@ -85,7 +85,7 @@ describe("createAmapClient", () => {
     });
   });
 
-  it("falls back to mock data when a real client method fails", async () => {
+  it("propagates real client failures when an AMap key is configured", async () => {
     const realClient: AmapClient = {
       searchPoi: vi.fn(async () => {
         throw new Error("network down");
@@ -112,14 +112,12 @@ describe("createAmapClient", () => {
       { realClient }
     );
 
-    const pois = await client.searchPoi({
-      keywords: "Longhu Tianjie",
-      city: "宁波"
-    });
-    const weather = await client.getWeather({ city: "宁波" });
-
-    expect(pois[0].name).toContain("龙湖天街");
-    expect(weather.kind).toBe("reference");
+    await expect(
+      client.searchPoi({
+        keywords: "外事学校",
+        city: "宁波"
+      })
+    ).rejects.toThrow("network down");
     expect(realClient.searchPoi).toHaveBeenCalledTimes(1);
   });
 });
@@ -170,6 +168,20 @@ describe("createRealAmapClient", () => {
     await expect(
       client.searchPoi({ keywords: "龙湖天街", city: "宁波" })
     ).rejects.toThrow("高德返回状态失败");
+  });
+
+  it("wraps network failures with AMap context", async () => {
+    const client = createRealAmapClient({
+      apiKey: "test-key",
+      throttle: { schedule: (job) => job() },
+      fetchImpl: vi.fn(async () => {
+        throw new Error("fetch failed");
+      }) as typeof fetch
+    });
+
+    await expect(
+      client.searchPoi({ keywords: "外事学校", city: "宁波" })
+    ).rejects.toThrow("高德请求失败：fetch failed");
   });
 
   it("parses v4 bicycling responses", async () => {
