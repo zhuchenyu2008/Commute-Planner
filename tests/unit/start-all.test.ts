@@ -284,6 +284,82 @@ describe("native one-click deployment runtime planning", () => {
     expect(result.values.OPENAI_MODEL).toBe("gpt-4o-mini");
   });
 
+  it("prompts all required values in configure mode even when already set", async () => {
+    const { prepareConfiguration } = await loadRuntimeStartAll();
+    const promptedKeys: string[] = [];
+
+    const result = await prepareConfiguration({
+      envText: [
+        "DATABASE_URL=file:./data/commute.db",
+        "DEFAULT_CITY=宁波",
+        "DEFAULT_TIMEZONE=Asia/Shanghai",
+        "AMAP_API_KEY=amap-key",
+        "OPENAI_API_KEY=openai-key",
+        "OPENAI_BASE_URL=https://api.openai.com/v1",
+        "OPENAI_MODEL=gpt-4o-mini"
+      ].join("\n"),
+      exampleText: "",
+      args: { configure: true, yes: false },
+      prompt: async (question) => {
+        const key = question.match(/^([A-Z0-9_]+)/)?.[1] ?? "";
+        promptedKeys.push(key);
+        return `${key.toLowerCase()}-updated`;
+      },
+      generator: { token: (bytes) => `token-${bytes}` }
+    });
+
+    expect(promptedKeys).toEqual([
+      "DATABASE_URL",
+      "DEFAULT_CITY",
+      "DEFAULT_TIMEZONE",
+      "AMAP_API_KEY",
+      "OPENAI_API_KEY",
+      "OPENAI_BASE_URL",
+      "OPENAI_MODEL"
+    ]);
+    expect(result.values.AMAP_API_KEY).toBe("amap_api_key-updated");
+    expect(result.values.OPENAI_API_KEY).toBe("openai_api_key-updated");
+    expect(result.missing).toEqual([]);
+  });
+
+  it("preserves existing optional runtime values during preparation", async () => {
+    const { prepareConfiguration } = await loadRuntimeStartAll();
+
+    const result = await prepareConfiguration({
+      envText: [
+        "DATABASE_URL=file:./data/commute.db",
+        "DEFAULT_CITY=宁波",
+        "DEFAULT_TIMEZONE=Asia/Shanghai",
+        "AMAP_API_KEY=amap-key",
+        "OPENAI_API_KEY=openai-key",
+        "OPENAI_BASE_URL=https://api.openai.com/v1",
+        "OPENAI_MODEL=gpt-4o-mini",
+        "TELEGRAM_BOT_TOKEN=bot-token",
+        "SMTP_HOST=smtp.example.com",
+        "SEED_USER_EMAIL=existing@example.com",
+        "SEED_USER_PASSWORD=existing-password",
+        "SCHEDULER_TICK_SECRET=existing-secret"
+      ].join("\n"),
+      exampleText: "",
+      args: { configure: false, yes: true },
+      prompt: async () => {
+        throw new Error("prompt should not be called in --yes mode");
+      },
+      generator: { token: (bytes) => `token-${bytes}` }
+    });
+
+    expect(result.values.TELEGRAM_BOT_TOKEN).toBe("bot-token");
+    expect(result.values.SMTP_HOST).toBe("smtp.example.com");
+    expect(result.values.SEED_USER_EMAIL).toBe("existing@example.com");
+    expect(result.values.SEED_USER_PASSWORD).toBe("existing-password");
+    expect(result.values.SCHEDULER_TICK_SECRET).toBe("existing-secret");
+    expect(result.envText).toContain("TELEGRAM_BOT_TOKEN=bot-token");
+    expect(result.envText).toContain("SMTP_HOST=smtp.example.com");
+    expect(result.envText).toContain("SEED_USER_EMAIL=existing@example.com");
+    expect(result.envText).toContain("SEED_USER_PASSWORD=existing-password");
+    expect(result.envText).toContain("SCHEDULER_TICK_SECRET=existing-secret");
+  });
+
   it("prepares install, prisma, seed, and production build commands", async () => {
     const { getPreparationCommands } = await loadRuntimeStartAll();
 

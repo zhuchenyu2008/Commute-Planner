@@ -152,6 +152,10 @@ function shouldPromptForKey({ key, args, values }) {
     return false;
   }
 
+  if (args.configure) {
+    return true;
+  }
+
   return isEmpty(values[key]);
 }
 
