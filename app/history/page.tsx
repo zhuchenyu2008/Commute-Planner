@@ -3,9 +3,14 @@ import { redirect } from "next/navigation";
 import { Clock3, MapPin } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { GlassCard } from "@/components/glass-card";
+import { HistoryDateFilter } from "@/components/history/history-date-filter";
 import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { getBeijingDayRange } from "@/lib/history/day-filter";
+import {
+  getTripDisplayStatus,
+  type TripDisplayTone,
+} from "@/lib/trips/display-status";
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("zh-CN", {
@@ -16,29 +21,11 @@ function formatDate(date: Date) {
   }).format(date);
 }
 
-function formatStatus(status: string) {
-  const labels: Record<string, string> = {
-    cancelled: "已取消",
-    completed: "已完成",
-    failed: "失败",
-    monitoring: "监控中",
-    pending: "待处理",
-    running: "运行中",
-    scheduled: "已计划",
-    sent: "已发送",
-    skipped: "已跳过",
-    timed_out: "已超时",
-  };
-
-  return labels[status] ?? status;
-}
-
-const statusClasses: Record<string, string> = {
-  cancelled: "bg-[#eeeef7] text-[#5d6072]",
-  completed: "bg-[#eef7f1] text-[#16633c]",
-  failed: "bg-[#ffdad6] text-[#93000a]",
-  monitoring: "bg-[#dcfce7] text-[#166534]",
-  scheduled: "bg-[#dbeafe] text-[#1e40af]",
+const statusClasses: Record<TripDisplayTone, string> = {
+  danger: "bg-[#ffdad6] text-[#93000a]",
+  neutral: "bg-[#eeeef7] text-[#5d6072]",
+  success: "bg-[#dcfce7] text-[#166534]",
+  warning: "bg-[#fef3c7] text-[#92400e]",
 };
 
 type HistoryPageProps = {
@@ -81,27 +68,7 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
             行程归档
           </p>
           <h1 className="mt-1 text-3xl font-bold text-[#191c1e]">历史行程</h1>
-          <form className="mt-4 flex flex-wrap items-center gap-3" action="/history">
-            <label
-              className="text-sm font-semibold text-[#434655]"
-              htmlFor="history-date"
-            >
-              查看日期
-            </label>
-            <input
-              className="rounded-2xl border border-white/70 bg-white/80 px-4 py-2 text-sm font-semibold text-[#191c1e] outline-none ring-primary/20 transition focus:ring-4"
-              defaultValue={dayRange.value}
-              id="history-date"
-              name="date"
-              type="date"
-            />
-            <button
-              className="rounded-2xl bg-[#2563eb] px-4 py-2 text-sm font-bold text-white"
-              type="submit"
-            >
-              查看
-            </button>
-          </form>
+          <HistoryDateFilter value={dayRange.value} />
         </header>
 
         {trips.length === 0 ? (
@@ -117,6 +84,10 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
               const minutes =
                 firstLeg?.selectedCandidate?.totalMinutes ??
                 firstLeg?.selectedCandidate?.routeMinutes;
+              const displayStatus = getTripDisplayStatus({
+                status: trip.status,
+                targetArriveAt: trip.targetArriveAt,
+              });
 
               return (
                 <Link className="block" href={`/trips/${trip.id}`} key={trip.id}>
@@ -133,11 +104,10 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
                       </div>
                       <span
                         className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${
-                          statusClasses[trip.status] ??
-                          "bg-[#f2f4f6] text-[#434655]"
+                          statusClasses[displayStatus.tone]
                         }`}
                       >
-                        {formatStatus(trip.status)}
+                        {displayStatus.label}
                       </span>
                     </div>
                     <div className="mt-4 flex flex-wrap items-center gap-3 text-sm font-medium text-[#434655]">

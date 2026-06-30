@@ -1,6 +1,12 @@
 import { formatMemoryKind } from "@/lib/memories/display";
+import {
+  getTripDisplayStatus,
+  isExpiredTripStatus,
+  TRIP_STATUS_LABELS,
+  type TripDisplayTone,
+} from "@/lib/trips/display-status";
 
-export type HomeTripStatusTone = "neutral" | "success" | "warning" | "danger";
+export type HomeTripStatusTone = TripDisplayTone;
 
 type HomeTripStatusInput = {
   status: string;
@@ -12,6 +18,7 @@ type HistoryTripSummaryInput = {
   title: string;
   status: string;
   finalStopName?: string | null;
+  targetArriveAt?: Date | null;
 };
 
 type LatestMemorySummaryInput = {
@@ -19,34 +26,8 @@ type LatestMemorySummaryInput = {
   label: string;
 } | null;
 
-const statusLabels: Record<string, string> = {
-  cancelled: "已取消",
-  completed: "已完成",
-  failed: "失败",
-  monitoring: "监控中",
-  planning: "规划中",
-  running: "运行中",
-  scheduled: "已计划",
-  timed_out: "已超时",
-};
-
-const statusTones: Record<string, HomeTripStatusTone> = {
-  cancelled: "neutral",
-  completed: "neutral",
-  failed: "danger",
-  monitoring: "success",
-  planning: "warning",
-  running: "warning",
-  scheduled: "success",
-  timed_out: "danger",
-};
-
 function isExpiredTrip(input: HomeTripStatusInput, now: Date) {
-  return Boolean(
-    (input.status === "monitoring" || input.status === "scheduled") &&
-      input.targetArriveAt &&
-      input.targetArriveAt.getTime() < now.getTime()
-  );
+  return isExpiredTripStatus({ ...input, now });
 }
 
 function formatBeijingTime(date: Date) {
@@ -83,8 +64,8 @@ export function formatHomeTripStatus(
   }
 
   return {
-    label: statusLabels[input.status] ?? input.status,
-    tone: statusTones[input.status] ?? "neutral",
+    label: TRIP_STATUS_LABELS[input.status] ?? input.status,
+    tone: getTripDisplayStatus({ ...input, now }).tone,
     title: input.finalStopName ?? "目的地待定",
     description: input.targetArriveAt
       ? `目标到达 ${formatBeijingTime(input.targetArriveAt)}`
@@ -92,8 +73,13 @@ export function formatHomeTripStatus(
   };
 }
 
-export function formatHistoryTripSummary(input: HistoryTripSummaryInput) {
-  return `${statusLabels[input.status] ?? input.status} · ${
+export function formatHistoryTripSummary(
+  input: HistoryTripSummaryInput,
+  now = new Date()
+) {
+  const displayStatus = getTripDisplayStatus({ ...input, now });
+
+  return `${displayStatus.label} · ${
     input.finalStopName ?? input.title
   }`;
 }

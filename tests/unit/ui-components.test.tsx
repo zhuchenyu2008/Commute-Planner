@@ -14,6 +14,7 @@ import {
   getAgentSessionViewState,
 } from "@/components/agent/agent-event-list";
 import { BottomNav } from "@/components/bottom-nav";
+import { HistoryDateFilter } from "@/components/history/history-date-filter";
 import { CommuteInput, getAgentStartResult } from "@/components/home/commute-input";
 import { CurrentLocationLabel } from "@/components/home/current-location-label";
 import { BufferList } from "@/components/trips/buffer-list";
@@ -623,6 +624,33 @@ describe("sample-aligned UI components", () => {
     expect(await screen.findByText("宁波外事学校")).toBeTruthy();
     expect(screen.queryByText(/29\.8652/)).toBeNull();
     expect(getCurrentPosition).not.toHaveBeenCalled();
+  });
+
+  it("allows the current location label to be styled as the home heading", () => {
+    const html = renderToStaticMarkup(
+      <CurrentLocationLabel fallbackCity="东钱湖地铁站" className="block" />
+    );
+
+    expect(html).toContain("东钱湖地铁站");
+    expect(html).toContain("block");
+  });
+
+  it("submits the history date filter when the user selects a day", () => {
+    const originalRequestSubmit = HTMLFormElement.prototype.requestSubmit;
+    const requestSubmit = vi.fn();
+    HTMLFormElement.prototype.requestSubmit = requestSubmit;
+
+    try {
+      render(<HistoryDateFilter value="2026-06-30" />);
+
+      fireEvent.change(screen.getByLabelText("查看日期"), {
+        target: { value: "2026-06-29" },
+      });
+
+      expect(requestSubmit).toHaveBeenCalledTimes(1);
+    } finally {
+      HTMLFormElement.prototype.requestSubmit = originalRequestSubmit;
+    }
   });
 
   it("sends Telegram and email test notifications from settings", async () => {

@@ -3,6 +3,7 @@ import {
   formatReminderStatus,
   getMonitoringStatusDisplay,
 } from "@/lib/trips/monitoring";
+import { getTripDisplayStatus } from "@/lib/trips/display-status";
 
 describe("trip display status helpers", () => {
   const now = new Date("2026-06-30T01:00:00.000Z");
@@ -48,5 +49,34 @@ describe("trip display status helpers", () => {
         now,
       })
     ).toBe("已过期");
+  });
+
+  it("formats expired monitoring trips for list displays", () => {
+    expect(
+      getTripDisplayStatus({
+        status: "monitoring",
+        targetArriveAt: new Date("2026-06-30T00:30:00.000Z"),
+        now,
+      })
+    ).toEqual({
+      key: "expired",
+      label: "已过期",
+      tone: "warning",
+      isExpired: true,
+    });
+  });
+
+  it("formats expired scheduled trips for list displays", () => {
+    expect(
+      getTripDisplayStatus({
+        status: "scheduled",
+        targetArriveAt: new Date("2026-06-30T00:30:00.000Z"),
+        now,
+      })
+    ).toMatchObject({
+      key: "expired",
+      label: "已过期",
+      isExpired: true,
+    });
   });
 });

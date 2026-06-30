@@ -31,6 +31,20 @@ describe("home summary helpers", () => {
     ).toEqual("已完成 · 图书馆");
   });
 
+  it("marks stale monitoring trips as expired in recent history summaries", () => {
+    expect(
+      formatHistoryTripSummary(
+        {
+          title: "家到东钱湖",
+          status: "monitoring",
+          finalStopName: "东钱湖地铁站",
+          targetArriveAt: new Date("2026-06-30T00:30:00.000Z"),
+        },
+        new Date("2026-06-30T01:00:00.000Z")
+      )
+    ).toEqual("已过期 · 东钱湖地铁站");
+  });
+
   it("marks stale monitoring trips as expired on the home card", () => {
     expect(
       formatHomeTripStatus(

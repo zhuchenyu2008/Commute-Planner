@@ -21,6 +21,7 @@ import {
   formatLatestMemorySummary,
   type HomeTripStatusTone,
 } from "@/lib/home/summary";
+import { getTripDisplayStatus } from "@/lib/trips/display-status";
 
 const toneClasses: Record<HomeTripStatusTone, string> = {
   danger: "bg-[#ffdad6] text-[#93000a]",
@@ -32,6 +33,7 @@ const toneClasses: Record<HomeTripStatusTone, string> = {
 const historyDotClasses: Record<string, string> = {
   cancelled: "bg-[#8a92a6]",
   completed: "bg-[#0f9f6e]",
+  expired: "bg-[#F59E0B]",
   failed: "bg-[#b42318]",
   monitoring: "bg-[#10B981]",
   scheduled: "bg-[#2563eb]",
@@ -100,10 +102,12 @@ export default async function HomePage() {
             <p className="flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.05em] text-[#434655]">
               <MapPin aria-hidden="true" className="size-4 text-[#2563eb]" />
               当前位置
-              <CurrentLocationLabel fallbackCity={currentLocationName} />
             </p>
             <h1 className="text-3xl font-bold leading-tight text-[#191c1e] md:text-4xl">
-              规划一次通勤
+              <CurrentLocationLabel
+                className="block"
+                fallbackCity={currentLocationName}
+              />
             </h1>
           </div>
           <GlassCard className="flex shrink-0 items-center gap-2 rounded-xl p-3">
@@ -172,23 +176,31 @@ export default async function HomePage() {
                       暂无历史行程
                     </p>
                   ) : (
-                    recentTrips.map((trip) => (
-                      <div className="flex gap-2" key={trip.id}>
-                        <span
-                          className={`mt-1 size-2.5 shrink-0 rounded-full ${
-                            historyDotClasses[trip.status] ?? "bg-[#c3c6d7]"
-                          }`}
-                        />
-                        <div className="min-w-0">
-                          <p className="truncate text-xs font-bold text-[#191c1e]">
-                            {trip.title}
-                          </p>
-                          <p className="mt-0.5 truncate text-xs font-medium text-[#434655]">
-                            {formatHistoryTripSummary(trip)}
-                          </p>
+                    recentTrips.map((trip) => {
+                      const displayStatus = getTripDisplayStatus({
+                        status: trip.status,
+                        targetArriveAt: trip.targetArriveAt,
+                      });
+
+                      return (
+                        <div className="flex gap-2" key={trip.id}>
+                          <span
+                            className={`mt-1 size-2.5 shrink-0 rounded-full ${
+                              historyDotClasses[displayStatus.key] ??
+                              "bg-[#c3c6d7]"
+                            }`}
+                          />
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-bold text-[#191c1e]">
+                              {trip.title}
+                            </p>
+                            <p className="mt-0.5 truncate text-xs font-medium text-[#434655]">
+                              {formatHistoryTripSummary(trip)}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </GlassCard>
