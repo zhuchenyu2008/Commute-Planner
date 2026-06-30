@@ -60,7 +60,7 @@ describe("telegram state service", () => {
     await createTrip(user.id, "home-cancelled", "cancelled");
 
     const planningTrips = [];
-    for (let index = 0; index < 11; index += 1) {
+    for (let index = 0; index < 25; index += 1) {
       planningTrips.push(
         await createTrip(user.id, `home-planning-${index}`, "planning")
       );
@@ -150,6 +150,52 @@ describe("telegram state service", () => {
     ).resolves.toBeNull();
   });
 
+  it("ignores a trip agent session scalar that points at another trip", async () => {
+    const chatId = `stale-session-${Date.now()}`;
+    const user = await createTelegramUser("stale-session", chatId);
+    const otherTrip = await createTrip(user.id, "home-old-trip", "monitoring");
+    const trip = await createTrip(user.id, "home-current-trip", "monitoring");
+    const otherSession = await prisma.agentSession.create({
+      data: {
+        userId: user.id,
+        tripId: otherTrip.id,
+        status: "completed",
+        purpose: "telegram_continuation",
+        prompt: "Existing session for a different trip.",
+      },
+    });
+    await prisma.trip.update({
+      where: { id: trip.id },
+      data: { agentSessionId: otherSession.id },
+    });
+
+    const result = await switchTelegramActiveTrip({
+      chatId,
+      userId: user.id,
+      tripId: trip.id,
+    });
+
+    expect(result).toMatchObject({
+      status: "switched",
+      agentSessionId: expect.any(String),
+    });
+    expect(result.agentSessionId).not.toBe(otherSession.id);
+    await expect(
+      prisma.telegramChatState.findUniqueOrThrow({ where: { chatId } })
+    ).resolves.toMatchObject({
+      activeTripId: trip.id,
+      activeAgentSessionId: result.agentSessionId,
+    });
+    await expect(
+      prisma.agentSession.findUniqueOrThrow({
+        where: { id: result.agentSessionId },
+      })
+    ).resolves.toMatchObject({
+      tripId: trip.id,
+      status: "completed",
+    });
+  });
+
   it("stores and returns the next Telegram offset", async () => {
     const defaultState = await prisma.telegramBotState.findUnique({
       where: { id: "default" },
@@ -160,6 +206,8 @@ describe("telegram state service", () => {
 
     await expect(getNextTelegramOffset()).resolves.toBeUndefined();
     await markTelegramUpdateProcessed(42);
+    await expect(getNextTelegramOffset()).resolves.toBe(43);
+    await markTelegramUpdateProcessed(41);
     await expect(getNextTelegramOffset()).resolves.toBe(43);
   });
 });

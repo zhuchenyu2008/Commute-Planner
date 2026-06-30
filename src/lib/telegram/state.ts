@@ -70,37 +70,49 @@ export async function getTelegramChatState(chatId: string) {
 }
 
 export async function listSwitchableTrips(input: { userId: string }) {
-  const trips = await prisma.trip.findMany({
-    where: {
-      userId: input.userId,
-      status: { not: "cancelled" },
-    },
-    orderBy: { createdAt: "desc" },
-    include: {
-      reminderJobs: {
-        where: { status: "scheduled" },
-        select: { id: true },
+  const tripSelect = {
+    id: true,
+    title: true,
+    status: true,
+    targetArriveAt: true,
+    createdAt: true,
+    _count: {
+      select: {
+        reminderJobs: { where: { status: "scheduled" } },
       },
     },
+  } as const;
+
+  const monitoringTrips = await prisma.trip.findMany({
+    where: {
+      userId: input.userId,
+      status: "monitoring",
+    },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+    select: tripSelect,
   });
 
-  return trips
-    .sort((left, right) => {
-      if (left.status === "monitoring" && right.status !== "monitoring") {
-        return -1;
-      }
-      if (left.status !== "monitoring" && right.status === "monitoring") {
-        return 1;
-      }
-      return right.createdAt.getTime() - left.createdAt.getTime();
-    })
-    .slice(0, 10)
-    .map((trip) => ({
+  const remainingLimit = 10 - monitoringTrips.length;
+  const otherTrips =
+    remainingLimit > 0
+      ? await prisma.trip.findMany({
+          where: {
+            userId: input.userId,
+            status: { notIn: ["cancelled", "monitoring"] },
+          },
+          orderBy: { createdAt: "desc" },
+          take: remainingLimit,
+          select: tripSelect,
+        })
+      : [];
+
+  return [...monitoringTrips, ...otherTrips].map((trip) => ({
       id: trip.id,
       title: trip.title,
       status: trip.status,
       targetArriveAt: trip.targetArriveAt,
-      scheduledReminderCount: trip.reminderJobs.length,
+      scheduledReminderCount: trip._count.reminderJobs,
     }));
 }
 
@@ -112,7 +124,11 @@ async function findOrCreateTripAgentSession(input: {
 }) {
   if (input.tripAgentSessionId) {
     const byTripScalar = await prisma.agentSession.findFirst({
-      where: { id: input.tripAgentSessionId, userId: input.userId },
+      where: {
+        id: input.tripAgentSessionId,
+        userId: input.userId,
+        tripId: input.tripId,
+      },
       orderBy: { createdAt: "desc" },
     });
     if (byTripScalar) return byTripScalar;
@@ -189,9 +205,17 @@ export async function getNextTelegramOffset() {
 }
 
 export async function markTelegramUpdateProcessed(updateId: number) {
-  return prisma.telegramBotState.upsert({
-    where: { id: "default" },
-    create: { id: "default", lastUpdateId: updateId },
-    update: { lastUpdateId: updateId },
+  return prisma.$transaction(async (tx) => {
+    const current = await tx.telegramBotState.findUnique({
+      where: { id: "default" },
+      select: { lastUpdateId: true },
+    });
+    const lastUpdateId = Math.max(current?.lastUpdateId ?? updateId, updateId);
+
+    return tx.telegramBotState.upsert({
+      where: { id: "default" },
+      create: { id: "default", lastUpdateId },
+      update: { lastUpdateId },
+    });
   });
 }
