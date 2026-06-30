@@ -132,6 +132,94 @@ export function validateRequiredConfig(values) {
   return REQUIRED_KEYS.filter((key) => isEmpty(values[key]));
 }
 
+async function promptForKey({ key, currentValue, prompt }) {
+  const defaultValue = currentValue?.trim() || GENERATED_DEFAULTS[key] || "";
+  const suffix = defaultValue ? ` [${defaultValue}]` : "";
+  const answer = await prompt(`${key}${suffix}: `, defaultValue);
+
+  return answer.trim() || defaultValue;
+}
+
+function shouldPromptForKey({ key, args, values }) {
+  if (args.yes) {
+    return false;
+  }
+
+  if (args.configure) {
+    return REQUIRED_KEYS.includes(key);
+  }
+
+  return REQUIRED_KEYS.includes(key) && isEmpty(values[key]);
+}
+
+export async function prepareConfiguration({
+  envText,
+  exampleText,
+  args,
+  prompt,
+  generator = createRandomGenerator()
+}) {
+  let document = parseDotEnv(envText ?? exampleText);
+  let values = envDocumentToObject(document);
+  const generatedResult = applyGeneratedDefaults(values, generator);
+  values = generatedResult.values;
+
+  for (const [key, value] of Object.entries(values)) {
+    document = setEnvValue(document, key, value);
+  }
+
+  for (const key of REQUIRED_KEYS) {
+    if (shouldPromptForKey({ key, args, values })) {
+      values[key] = await promptForKey({
+        key,
+        currentValue: values[key],
+        prompt
+      });
+      document = setEnvValue(document, key, values[key]);
+    }
+  }
+
+  const missing = validateRequiredConfig(values);
+
+  return {
+    envText: serializeDotEnv(document),
+    values,
+    generated: generatedResult.generated,
+    missing
+  };
+}
+
+export function getPreparationCommands() {
+  return [
+    ["npm", "install"],
+    ["npm", "run", "prisma:generate"],
+    ["npm", "run", "prisma:deploy"],
+    ["npm", "run", "prisma:seed"],
+    ["npm", "run", "build"]
+  ];
+}
+
+export function buildServicePlan(values) {
+  const services = [
+    { name: "web", command: ["npm", "run", "start"], kind: "process" },
+    {
+      name: "scheduler",
+      command: ["npm", "run", "scheduler:tick"],
+      kind: "scheduler"
+    }
+  ];
+
+  if (values.TELEGRAM_BOT_TOKEN?.trim()) {
+    services.push({
+      name: "telegram",
+      command: ["npm", "run", "telegram:poll"],
+      kind: "process"
+    });
+  }
+
+  return services;
+}
+
 function isEmpty(value) {
   return value === undefined || value.trim() === "";
 }

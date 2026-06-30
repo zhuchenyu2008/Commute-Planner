@@ -30,6 +30,38 @@ async function loadStartAll(): Promise<StartAllModule> {
   return (await import(url)) as StartAllModule;
 }
 
+type PrepareConfigurationInput = {
+  envText: string | undefined;
+  exampleText: string;
+  args: { configure: boolean; yes: boolean };
+  prompt: (question: string, defaultValue?: string) => Promise<string>;
+  generator: { token: (bytes: number) => string };
+};
+
+type StartAllModuleWithRuntime = StartAllModule & {
+  prepareConfiguration: (
+    input: PrepareConfigurationInput
+  ) => Promise<{
+    envText: string;
+    values: Record<string, string>;
+    generated: {
+      seedUserEmail?: string;
+      seedUserPassword?: string;
+      schedulerTickSecret?: string;
+    };
+    missing: string[];
+  }>;
+  getPreparationCommands: () => string[][];
+  buildServicePlan: (
+    values: Record<string, string>
+  ) => Array<{ name: string; command: string[]; kind: "process" | "scheduler" }>;
+};
+
+async function loadRuntimeStartAll(): Promise<StartAllModuleWithRuntime> {
+  const url = pathToFileURL(resolve("scripts/start-all.mjs")).href;
+  return (await import(url)) as StartAllModuleWithRuntime;
+}
+
 describe("native one-click deployment config", () => {
   it("parses arguments for configure and non-interactive modes", async () => {
     const { parseArgs } = await loadStartAll();
@@ -185,5 +217,81 @@ describe("native one-click deployment config", () => {
         OPENAI_MODEL: "gpt-4o-mini"
       })
     ).toEqual([]);
+  });
+});
+
+describe("native one-click deployment runtime planning", () => {
+  it("prompts for required AMap and AI values in interactive mode", async () => {
+    const { prepareConfiguration } = await loadRuntimeStartAll();
+    const answers = new Map([
+      ["AMAP_API_KEY", "amap-key"],
+      ["OPENAI_API_KEY", "openai-key"],
+      ["OPENAI_BASE_URL", "https://api.openai.com/v1"],
+      ["OPENAI_MODEL", "gpt-4o-mini"]
+    ]);
+
+    const result = await prepareConfiguration({
+      envText: [
+        "DATABASE_URL=file:./data/commute.db",
+        "DEFAULT_CITY=宁波",
+        "DEFAULT_TIMEZONE=Asia/Shanghai",
+        "AMAP_API_KEY=",
+        "OPENAI_API_KEY=",
+        "OPENAI_BASE_URL=",
+        "OPENAI_MODEL="
+      ].join("\n"),
+      exampleText: "",
+      args: { configure: false, yes: false },
+      prompt: async (question, defaultValue) => {
+        const key = question.match(/^([A-Z0-9_]+)/)?.[1];
+        return key ? answers.get(key) ?? defaultValue ?? "" : defaultValue ?? "";
+      },
+      generator: { token: (bytes) => `token-${bytes}` }
+    });
+
+    expect(result.missing).toEqual([]);
+    expect(result.values.AMAP_API_KEY).toBe("amap-key");
+    expect(result.values.OPENAI_API_KEY).toBe("openai-key");
+    expect(result.envText).toContain("SEED_USER_EMAIL=user-token-6@example.local");
+    expect(result.generated.seedUserPassword).toBe("token-18");
+  });
+
+  it("does not prompt or invent required service keys in yes mode", async () => {
+    const { prepareConfiguration } = await loadRuntimeStartAll();
+
+    const result = await prepareConfiguration({
+      envText: "DATABASE_URL=\nAMAP_API_KEY=\nOPENAI_API_KEY=\nOPENAI_MODEL=\n",
+      exampleText: "",
+      args: { configure: false, yes: true },
+      prompt: async () => {
+        throw new Error("prompt should not be called in --yes mode");
+      },
+      generator: { token: (bytes) => `token-${bytes}` }
+    });
+
+    expect(result.missing).toEqual(["AMAP_API_KEY", "OPENAI_API_KEY"]);
+    expect(result.values.DATABASE_URL).toBe("file:./data/commute.db");
+    expect(result.values.OPENAI_MODEL).toBe("gpt-4o-mini");
+  });
+
+  it("prepares install, prisma, seed, and production build commands", async () => {
+    const { getPreparationCommands } = await loadRuntimeStartAll();
+
+    expect(getPreparationCommands()).toEqual([
+      ["npm", "install"],
+      ["npm", "run", "prisma:generate"],
+      ["npm", "run", "prisma:deploy"],
+      ["npm", "run", "prisma:seed"],
+      ["npm", "run", "build"]
+    ]);
+  });
+
+  it("starts Telegram only when a bot token is configured", async () => {
+    const { buildServicePlan } = await loadRuntimeStartAll();
+
+    expect(buildServicePlan({ TELEGRAM_BOT_TOKEN: "" }).map((service) => service.name))
+      .toEqual(["web", "scheduler"]);
+    expect(buildServicePlan({ TELEGRAM_BOT_TOKEN: "bot-token" }).map((service) => service.name))
+      .toEqual(["web", "scheduler", "telegram"]);
   });
 });
