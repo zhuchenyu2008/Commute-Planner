@@ -106,6 +106,45 @@ Telegram 用法：
 - `/cancel` 取消当前行程监控。
 - `/new` 不会取消旧行程提醒，只有 `/cancel` 会取消。
 
+## 本机一键部署
+
+本机一键部署是和 Docker 并列的生产启动方式，适合不想使用容器、但希望一次启动 Web、scheduler 和 Telegram worker 的机器。
+
+Windows：
+
+```powershell
+.\start-all.ps1
+```
+
+也可以双击 `start-all.cmd`。如果 PowerShell 执行策略拦截脚本，请使用 `start-all.cmd`，它会以 `ExecutionPolicy Bypass` 调用 PowerShell 入口。
+
+Linux：
+
+```bash
+chmod +x ./start-all.sh
+./start-all.sh
+```
+
+首次启动时，脚本会检查并补全 `.env`，然后执行依赖安装、Prisma 生成、数据库迁移、种子账号写入、生产构建和服务启动。高德地图与 AI Agent 配置是必填项：
+
+- `AMAP_API_KEY`
+- `OPENAI_API_KEY`
+- `OPENAI_BASE_URL`
+- `OPENAI_MODEL`
+
+`SEED_USER_EMAIL`、`SEED_USER_PASSWORD` 和 `SCHEDULER_TICK_SECRET` 如果留空，脚本会自动生成并写入 `.env`。随机生成的种子账号和密码会在首次生成时打印到控制台。
+
+`TELEGRAM_BOT_TOKEN` 和 SMTP 配置是可选通知能力。未配置 Telegram token 时，脚本会跳过 Telegram worker，但 Web 和 scheduler 会继续启动。
+
+可用参数：
+
+```bash
+npm run start:all -- --configure
+npm run start:all -- --yes
+```
+
+`--configure` 会强制重新进入配置向导。`--yes` 适合自动化环境，缺少必填项时会直接失败并列出缺失配置。
+
 ## Docker
 
 同时运行 web app、scheduler 和 Telegram worker：

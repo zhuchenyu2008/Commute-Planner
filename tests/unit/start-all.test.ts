@@ -543,3 +543,16 @@ describe("native one-click deployment wrappers", () => {
     expect(sh).toContain("--yes");
   });
 });
+
+describe("native one-click deployment documentation", () => {
+  it("documents the native deployment path beside Docker", () => {
+    const readme = readFileSync("README.md", "utf8");
+
+    expect(readme).toContain("本机一键部署");
+    expect(readme).toContain("start-all.cmd");
+    expect(readme).toContain("start-all.ps1");
+    expect(readme).toContain("start-all.sh");
+    expect(readme).toContain("AMAP_API_KEY");
+    expect(readme).toContain("OPENAI_API_KEY");
+  });
+});
