@@ -18,6 +18,13 @@ const REQUIRED_KEYS = [
   "OPENAI_MODEL"
 ];
 
+const INTERACTIVE_PROMPT_KEYS = [
+  "AMAP_API_KEY",
+  "OPENAI_API_KEY",
+  "OPENAI_BASE_URL",
+  "OPENAI_MODEL"
+];
+
 export function parseArgs(argv) {
   return {
     configure: argv.includes("--configure"),
@@ -145,11 +152,7 @@ function shouldPromptForKey({ key, args, values }) {
     return false;
   }
 
-  if (args.configure) {
-    return REQUIRED_KEYS.includes(key);
-  }
-
-  return REQUIRED_KEYS.includes(key) && isEmpty(values[key]);
+  return isEmpty(values[key]);
 }
 
 export async function prepareConfiguration({
@@ -169,7 +172,9 @@ export async function prepareConfiguration({
     document = setEnvValue(document, key, value);
   }
 
-  for (const key of REQUIRED_KEYS) {
+  const promptKeys = args.configure ? REQUIRED_KEYS : INTERACTIVE_PROMPT_KEYS;
+
+  for (const key of promptKeys) {
     if (shouldPromptForKey({ key, args, values: originalValues })) {
       values[key] = await promptForKey({
         key,

@@ -233,9 +233,9 @@ describe("native one-click deployment runtime planning", () => {
 
     const result = await prepareConfiguration({
       envText: [
-        "DATABASE_URL=file:./data/commute.db",
-        "DEFAULT_CITY=宁波",
-        "DEFAULT_TIMEZONE=Asia/Shanghai",
+        "DATABASE_URL=",
+        "DEFAULT_CITY=",
+        "DEFAULT_TIMEZONE=",
         "AMAP_API_KEY=",
         "OPENAI_API_KEY=",
         "OPENAI_BASE_URL=",
