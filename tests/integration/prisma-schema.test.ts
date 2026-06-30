@@ -7,6 +7,10 @@ describe("Prisma schema", () => {
     "prisma/migrations/20260628193000_optional_origin_settings/migration.sql",
     "utf8"
   );
+  const uniqueTelegramChatIdMigration = readFileSync(
+    "prisma/migrations/20260630120000_unique_telegram_chat_id/migration.sql",
+    "utf8"
+  );
 
   it("models the Agent-centered multi-stop trip graph", () => {
     for (const model of [
@@ -65,6 +69,13 @@ describe("Prisma schema", () => {
     expect(optionalOriginMigration).toContain('"originLngLat" TEXT,');
     expect(optionalOriginMigration).not.toContain('"originName" TEXT NOT NULL');
     expect(optionalOriginMigration).not.toContain('"originLngLat" TEXT NOT NULL');
+  });
+
+  it("requires each saved Telegram Chat ID to be bound to only one user", () => {
+    expect(schema).toContain("telegramChatId      String?  @unique");
+    expect(uniqueTelegramChatIdMigration).toContain(
+      'CREATE UNIQUE INDEX "UserSettings_telegramChatId_key" ON "UserSettings"("telegramChatId");'
+    );
   });
 
   it("stores Telegram chat state and bot polling offsets", () => {

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { readEnv } from "@/lib/env";
@@ -7,6 +8,8 @@ const ROUTE_PREFERENCES = new Set(["balanced", "fastest", "habit", "transit", "b
 const TIMEZONES = new Set(["Asia/Shanghai"]);
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const LNG_LAT_PATTERN = /^-?\d+(?:\.\d+)?,-?\d+(?:\.\d+)?$/;
+const TELEGRAM_CHAT_ID_CONFLICT_DETAIL =
+  "Telegram Chat ID 已被其他用户绑定，请使用自己的 Chat ID 或先解除原绑定。";
 
 function getSettingsDefaults() {
   const env = readEnv();
@@ -77,6 +80,19 @@ function validateSettings(data: {
   return errors;
 }
 
+function isTelegramChatIdUniqueViolation(error: unknown) {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError)) {
+    return false;
+  }
+
+  const target = error.meta?.target;
+  return (
+    error.code === "P2002" &&
+    (target === "UserSettings_telegramChatId_key" ||
+      (Array.isArray(target) && target.includes("telegramChatId")))
+  );
+}
+
 export async function GET() {
   const user = await getCurrentUser();
 
@@ -124,14 +140,42 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "设置无效", details: errors }, { status: 400 });
   }
 
-  const settings = await prisma.userSettings.upsert({
-    where: { userId: user.id },
-    update: data,
-    create: {
-      userId: user.id,
-      ...data
-    }
-  });
+  if (data.telegramChatId) {
+    const existingTelegramBinding = await prisma.userSettings.findFirst({
+      where: {
+        telegramChatId: data.telegramChatId,
+        userId: { not: user.id },
+      },
+      select: { id: true },
+    });
 
-  return NextResponse.json({ settings });
+    if (existingTelegramBinding) {
+      return NextResponse.json(
+        { error: "设置无效", details: [TELEGRAM_CHAT_ID_CONFLICT_DETAIL] },
+        { status: 400 }
+      );
+    }
+  }
+
+  try {
+    const settings = await prisma.userSettings.upsert({
+      where: { userId: user.id },
+      update: data,
+      create: {
+        userId: user.id,
+        ...data
+      }
+    });
+
+    return NextResponse.json({ settings });
+  } catch (error) {
+    if (isTelegramChatIdUniqueViolation(error)) {
+      return NextResponse.json(
+        { error: "设置无效", details: [TELEGRAM_CHAT_ID_CONFLICT_DETAIL] },
+        { status: 400 }
+      );
+    }
+
+    throw error;
+  }
 }

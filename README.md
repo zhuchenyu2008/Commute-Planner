@@ -114,7 +114,7 @@ Telegram 用法：
 docker compose up --build
 ```
 
-`web` 服务会执行 `npx prisma migrate deploy && npm run start`，并暴露 `3000:3000`。`scheduler` 服务会每 60 秒运行一次 `npm run scheduler:tick`。`telegram` 服务会先执行 `npx prisma migrate deploy`，再运行 `npm run telegram:poll`。
+`migrate` 一次性服务会先执行 `npx prisma migrate deploy`。`web`、`scheduler` 和 `telegram` 都通过 `service_completed_successfully` 依赖它，确保 SQLite schema 只在长驻服务启动前迁移一次。`web` 只运行 `npm run start` 并暴露 `3000:3000`，`scheduler` 每 60 秒运行一次 `npm run scheduler:tick`，`telegram` worker 只运行 `npm run telegram:poll`，不再自己执行 migration。
 
 Telegram worker 需要在 `.env` 中配置 `TELEGRAM_BOT_TOKEN`。未配置 token 时，worker 会提示缺少配置并退出，不会启动 polling。
 

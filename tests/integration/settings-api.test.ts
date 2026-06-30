@@ -187,6 +187,64 @@ describe("settings API", () => {
     expect(body.settings.emailRecipient).toBe("user@example.com");
   });
 
+  it("rejects saving a Telegram Chat ID that is already bound to another user", async () => {
+    const { PUT } = await import("@app/api/settings/route");
+    const duplicateChatId = `chat-dup-${Date.now()}-${Math.random()}`;
+    const firstUser = await prisma.user.create({
+      data: {
+        email: `settings-telegram-first-${Date.now()}@example.com`,
+        name: "Telegram First User",
+        passwordHash: "hash",
+        settings: {
+          create: {
+            defaultCity: "宁波",
+            timezone: "Asia/Shanghai",
+            originName: null,
+            originLngLat: null,
+            routePreference: "balanced",
+            telegramChatId: duplicateChatId,
+          },
+        },
+      },
+      include: { settings: true },
+    });
+    const secondUser = await prisma.user.create({
+      data: {
+        email: `settings-telegram-second-${Date.now()}@example.com`,
+        name: "Telegram Second User",
+        passwordHash: "hash",
+      },
+      include: { settings: true },
+    });
+    getCurrentUserMock.mockResolvedValue(secondUser);
+
+    const response = await PUT(
+      new Request("http://localhost/api/settings", {
+        method: "PUT",
+        body: JSON.stringify({
+          defaultCity: "宁波",
+          timezone: "Asia/Shanghai",
+          routePreference: "balanced",
+          telegramChatId: duplicateChatId,
+        }),
+      })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.details).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("Telegram Chat ID 已被其他用户绑定"),
+      ])
+    );
+    await expect(
+      prisma.userSettings.findUniqueOrThrow({ where: { userId: firstUser.id } })
+    ).resolves.toMatchObject({ telegramChatId: duplicateChatId });
+    await expect(
+      prisma.userSettings.findUnique({ where: { userId: secondUser.id } })
+    ).resolves.toBeNull();
+  });
+
   it("returns 400 for invalid planner settings", async () => {
     const { PUT } = await import("@app/api/settings/route");
     const user = await prisma.user.create({

@@ -1,7 +1,18 @@
 services:
+  migrate:
+    build: .
+    command: sh -c "npx prisma migrate deploy"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: file:/app/data/commute.db
+    volumes:
+      - ./data:/app/data
+    restart: "no"
+
   web:
     build: .
-    command: sh -c "npx prisma migrate deploy && npm run start"
+    command: sh -c "npm run start"
     env_file:
       - .env
     environment:
@@ -10,6 +21,9 @@ services:
       - "3000:3000"
     volumes:
       - ./data:/app/data
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
 
   scheduler:
     build: .
@@ -21,11 +35,12 @@ services:
     volumes:
       - ./data:/app/data
     depends_on:
-      - web
+      migrate:
+        condition: service_completed_successfully
 
   telegram:
     build: .
-    command: sh -c "npx prisma migrate deploy && npm run telegram:poll"
+    command: sh -c "npm run telegram:poll"
     restart: unless-stopped
     env_file:
       - .env
@@ -34,4 +49,5 @@ services:
     volumes:
       - ./data:/app/data
     depends_on:
-      - web
+      migrate:
+        condition: service_completed_successfully

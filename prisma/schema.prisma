@@ -43,7 +43,7 @@ model UserSettings {
   originName          String?
   originLngLat        String?
   routePreference     String   @default("balanced")
-  telegramChatId      String?
+  telegramChatId      String?  @unique
   emailRecipient      String?
   reminderCadenceJson String   @default("[30,20,15,10,5,0]")
   createdAt           DateTime @default(now())

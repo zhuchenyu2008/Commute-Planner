@@ -16,7 +16,7 @@ describe("telegram state service", () => {
     await ensureTestDatabase();
   });
 
-  it("resolves unbound, bound, and ambiguous chat ids", async () => {
+  it("resolves unbound and bound chat ids", async () => {
     const chatId = `chat-${Date.now()}`;
     await expect(findBoundTelegramUser(chatId)).resolves.toMatchObject({
       status: "unbound",
@@ -28,12 +28,6 @@ describe("telegram state service", () => {
       status: "bound",
       chatId,
       user: { id: user.id },
-    });
-
-    await createTelegramUser("ambiguous", chatId);
-    await expect(findBoundTelegramUser(chatId)).resolves.toMatchObject({
-      status: "ambiguous",
-      chatId,
     });
   });
 

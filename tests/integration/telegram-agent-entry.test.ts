@@ -402,27 +402,6 @@ describe("telegram agent update handler", () => {
     ).resolves.toBeNull();
   });
 
-  it("answers an ambiguous switch callback without changing state", async () => {
-    const chatId = uniqueChatId("callback-ambiguous");
-    await createTelegramUser("callback-ambiguous-one", chatId);
-    await createTelegramUser("callback-ambiguous-two", chatId);
-    const bot = createMockBot();
-
-    await handleTelegramUpdate({
-      update: callbackUpdate(chatId, "callback-ambiguous", "sw:trip-1"),
-      bot,
-      agentBridge: createMockAgentBridge(),
-    });
-
-    expect(bot.answerCallbackQuery).toHaveBeenCalledWith({
-      callbackQueryId: "callback-ambiguous",
-      text: expect.stringContaining("Telegram Chat ID"),
-    });
-    await expect(
-      prisma.telegramChatState.findUnique({ where: { chatId } })
-    ).resolves.toBeNull();
-  });
-
   it("keeps switched callback state when the confirmation message fails", async () => {
     const consoleError = vi
       .spyOn(console, "error")
