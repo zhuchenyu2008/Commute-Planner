@@ -29,6 +29,7 @@ const notificationEnvKeys = [
   "SMTP_PORT",
   "SMTP_SECURE",
   "EMAIL_RECIPIENT",
+  "APP_BASE_URL",
 ] as const;
 
 const savedNotificationEnv = new Map<string, string | undefined>();
@@ -203,7 +204,13 @@ describe("scheduler reminder processing", () => {
       },
     });
 
-    const result = await processDueReminderJobs({ now });
+    process.env.APP_BASE_URL = "localhost:3000";
+    const resultPromise = processDueReminderJobs({ now });
+
+    await expect(resultPromise).resolves.toMatchObject({
+      failed: 0,
+    });
+    const result = await resultPromise;
 
     expect(result.processed).toBeGreaterThanOrEqual(1);
     expect(result.skipped).toBeGreaterThanOrEqual(1);
@@ -250,6 +257,9 @@ describe("scheduler reminder processing", () => {
         text: expect.stringContaining("该出发了"),
         html: expect.stringContaining("该出发了"),
       })
+    );
+    expect(sendEmailMock.mock.calls[0][0].html).not.toContain(
+      "localhost:3000"
     );
 
     await processDueReminderJobs({ now });
@@ -536,6 +546,13 @@ describe("scheduler reminder processing", () => {
         html: expect.stringContaining("出发时间已更新"),
       })
     );
+    const routeChangeEmail = sendEmailMock.mock.calls[0][0];
+    expect(routeChangeEmail.text).toContain("Updated transit route");
+    expect(routeChangeEmail.text).toContain("40 分钟");
+    expect(routeChangeEmail.html).toContain("Updated transit route");
+    expect(routeChangeEmail.html).toContain("40 分钟");
+    expect(routeChangeEmail.html).toContain("原最晚出发时间");
+    expect(routeChangeEmail.html).toContain("17:00");
   });
 });
 

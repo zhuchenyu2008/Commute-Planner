@@ -49,6 +49,7 @@ export async function findDueReminderJobs(
         include: {
           selectedCandidate: true,
           routeSegments: {
+            select: { title: true, order: true },
             orderBy: { order: "asc" },
           },
         },

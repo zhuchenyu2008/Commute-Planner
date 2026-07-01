@@ -50,6 +50,20 @@ type SnapshotLegInput = {
     totalMinutes: number;
   } | null;
 } | null | undefined;
+type EmailTemplateLegInput = {
+  destinationName: string | null;
+  latestDepartAt: Date | null;
+  targetArriveAt: Date | null;
+  selectedCandidate?: {
+    title: string;
+    routeMinutes: number;
+    totalMinutes: number;
+  } | null;
+  routeSegments?: {
+    title: string;
+    order: number;
+  }[];
+} | null | undefined;
 
 const DEFAULT_ROUTE_CHANGE_THRESHOLD_MINUTES = 3;
 
@@ -134,47 +148,52 @@ function absoluteAppUrl(path: string) {
 
   if (!baseUrl) return path;
 
-  return new URL(
-    path,
-    baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`
-  ).toString();
+  try {
+    return new URL(
+      path,
+      baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`
+    ).toString();
+  } catch {
+    return path;
+  }
 }
 
-function summarizeRouteTitle(job: DueReminderJob) {
-  const segmentTitle = job.leg?.routeSegments
+function summarizeRouteTitle(leg: EmailTemplateLegInput) {
+  const segmentTitle = leg?.routeSegments
     ?.map((segment) => segment.title)
     .filter(Boolean)
     .join(" -> ");
 
   return (
-    job.leg?.selectedCandidate?.title ??
+    leg?.selectedCandidate?.title ??
     (segmentTitle || null) ??
     "查看行程详情"
   );
 }
 
-function getTotalMinutes(job: DueReminderJob) {
+function getTotalMinutes(leg: EmailTemplateLegInput) {
   return (
-    job.leg?.selectedCandidate?.totalMinutes ??
-    job.leg?.selectedCandidate?.routeMinutes ??
+    leg?.selectedCandidate?.totalMinutes ??
+    leg?.selectedCandidate?.routeMinutes ??
     null
   );
 }
 
 function buildEmailTemplateInput(
-  job: DueReminderJob
+  job: DueReminderJob,
+  leg: EmailTemplateLegInput = job.leg
 ): CommuteEmailTemplateInput {
   const destination =
-    job.leg?.destinationName ?? job.trip.finalStopName ?? job.trip.title;
+    leg?.destinationName ?? job.trip.finalStopName ?? job.trip.title;
   const tripPath = `/trips/${job.tripId}`;
 
   return {
     tripTitle: job.trip.title,
     destinationName: destination,
-    latestDepartAt: job.leg?.latestDepartAt ?? job.scheduledFor,
-    targetArriveAt: job.leg?.targetArriveAt ?? job.trip.targetArriveAt,
-    totalMinutes: getTotalMinutes(job),
-    routeTitle: summarizeRouteTitle(job),
+    latestDepartAt: leg?.latestDepartAt ?? job.scheduledFor,
+    targetArriveAt: leg?.targetArriveAt ?? job.trip.targetArriveAt,
+    totalMinutes: getTotalMinutes(leg),
+    routeTitle: summarizeRouteTitle(leg),
     weatherSummary: "以行程详情为准",
     detailsUrl: absoluteAppUrl(tripPath),
     stopMonitoringUrl: absoluteAppUrl(tripPath),
@@ -218,6 +237,37 @@ async function loadCurrentLegSnapshot(job: DueReminderJob, legOrder?: number) {
   });
 
   return snapshotLeg(leg);
+}
+
+async function loadCurrentLegForEmail(job: DueReminderJob, legOrder?: number) {
+  const clauses = [];
+
+  if (job.legId) {
+    clauses.push({ id: job.legId });
+  }
+
+  if (legOrder !== undefined) {
+    clauses.push({ order: legOrder });
+  }
+
+  if (clauses.length === 0) {
+    return null;
+  }
+
+  return prisma.tripLeg.findFirst({
+    where: {
+      tripId: job.tripId,
+      OR: clauses,
+    },
+    include: {
+      selectedCandidate: true,
+      routeSegments: {
+        select: { title: true, order: true },
+        orderBy: { order: "asc" },
+      },
+    },
+    orderBy: { updatedAt: "desc" },
+  });
 }
 
 function differenceInMinutes(
@@ -516,14 +566,21 @@ async function processRouteRecheckJob(
     }
 
     await refreshReminderScheduleAfterRouteChange(job, now, before?.order);
+    const currentLeg = await loadCurrentLegForEmail(job, before?.order);
+    const latestDepartAt =
+      after?.latestDepartAt ??
+      currentLeg?.latestDepartAt ??
+      job.leg?.latestDepartAt ??
+      job.scheduledFor;
     const content = buildRouteChangedText({
       job,
       changeMinutes,
-      latestDepartAt: after?.latestDepartAt,
+      latestDepartAt,
     });
     const email = buildRouteChangeEmail({
-      ...buildEmailTemplateInput(job),
-      latestDepartAt: after?.latestDepartAt ?? job.leg?.latestDepartAt,
+      ...buildEmailTemplateInput(job, currentLeg ?? job.leg),
+      latestDepartAt,
+      previousLatestDepartAt: before?.latestDepartAt ?? job.leg?.latestDepartAt,
       changeMinutes,
     });
     const deliveryResults = await deliverReminderNotification({
