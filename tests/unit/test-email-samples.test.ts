@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { selectTemplateEmailRecipient } from "@/lib/notifications/test-email-recipient";
 import { buildTemplateTestEmails } from "@/lib/notifications/test-email-samples";
 
 describe("template test emails", () => {
@@ -18,5 +19,26 @@ describe("template test emails", () => {
       subject: "通勤时间已变化：测试通勤路线",
     });
     expect(emails[1].html).toContain("出发时间已更新");
+  });
+});
+
+describe("template test email recipient selection", () => {
+  it("skips blank latest recipients and selects the next usable address", () => {
+    const recipient = selectTemplateEmailRecipient([
+      { emailRecipient: "   " },
+      { emailRecipient: "  commuter@example.com  " },
+    ]);
+
+    expect(recipient).toBe("commuter@example.com");
+  });
+
+  it("returns null when every candidate is null or blank", () => {
+    const recipient = selectTemplateEmailRecipient([
+      { emailRecipient: null },
+      { emailRecipient: "" },
+      { emailRecipient: "   " },
+    ]);
+
+    expect(recipient).toBeNull();
   });
 });

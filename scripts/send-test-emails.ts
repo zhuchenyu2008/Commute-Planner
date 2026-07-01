@@ -1,16 +1,18 @@
 import { prisma } from "@/lib/db";
 import { sendEmail } from "@/lib/notifications/email";
+import { selectTemplateEmailRecipient } from "@/lib/notifications/test-email-recipient";
 import { buildTemplateTestEmails } from "@/lib/notifications/test-email-samples";
 
 async function main() {
-  const settings = await prisma.userSettings.findFirst({
+  const settings = await prisma.userSettings.findMany({
     where: {
       emailRecipient: { not: null },
     },
     orderBy: { updatedAt: "desc" },
+    take: 10,
   });
 
-  const recipient = settings?.emailRecipient?.trim();
+  const recipient = selectTemplateEmailRecipient(settings);
 
   if (!recipient) {
     throw new Error("没有找到已配置的邮件接收人 emailRecipient。");
