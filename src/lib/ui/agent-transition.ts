@@ -2,8 +2,30 @@ export const AGENT_TRANSITION_PROMPT_KEY = "commute-planner:agent-prompt";
 export const AGENT_TRANSITION_SESSION_KEY = "commute-planner:agent-session";
 
 type ViewTransitionDocument = Document & {
-  startViewTransition?: (callback: () => void) => unknown;
+  startViewTransition?: (callback: () => void | Promise<void>) => unknown;
 };
+
+const ROUTE_VIEW_TRANSITION_TIMEOUT_MS = 1200;
+
+let pendingRouteTransition: {
+  resolve: () => void;
+  timeoutId: number | undefined;
+} | null = null;
+
+function resolvePendingRouteTransition() {
+  if (!pendingRouteTransition) {
+    return;
+  }
+
+  const { resolve, timeoutId } = pendingRouteTransition;
+  pendingRouteTransition = null;
+
+  if (timeoutId !== undefined && typeof window !== "undefined") {
+    window.clearTimeout(timeoutId);
+  }
+
+  resolve();
+}
 
 function prefersReducedMotion(): boolean {
   if (typeof window === "undefined") {
@@ -95,7 +117,13 @@ export function takePendingAgentPrompt(sessionId?: string): string {
   return prompt;
 }
 
+export function completeRouteViewTransition(): void {
+  resolvePendingRouteTransition();
+}
+
 export function startRouteViewTransition(navigate: () => void): void {
+  resolvePendingRouteTransition();
+
   if (prefersReducedMotion()) {
     navigate();
     return;
@@ -113,5 +141,19 @@ export function startRouteViewTransition(navigate: () => void): void {
     return;
   }
 
-  transitionDocument.startViewTransition(navigate);
+  transitionDocument.startViewTransition(() => {
+    navigate();
+
+    return new Promise<void>((resolve) => {
+      const timeoutId =
+        typeof window === "undefined"
+          ? undefined
+          : window.setTimeout(
+              resolvePendingRouteTransition,
+              ROUTE_VIEW_TRANSITION_TIMEOUT_MS
+            );
+
+      pendingRouteTransition = { resolve, timeoutId };
+    });
+  });
 }

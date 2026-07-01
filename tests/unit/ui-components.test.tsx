@@ -26,7 +26,8 @@ import {
   getMonitoringStatusDisplay,
 } from "@/lib/trips/monitoring";
 
-const { routerPushMock } = vi.hoisted(() => ({
+const { completeRouteViewTransitionMock, routerPushMock } = vi.hoisted(() => ({
+  completeRouteViewTransitionMock: vi.fn(),
   routerPushMock: vi.fn(),
 }));
 
@@ -38,6 +39,16 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
+vi.mock("@/lib/ui/agent-transition", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/lib/ui/agent-transition")>();
+
+  return {
+    ...actual,
+    completeRouteViewTransition: completeRouteViewTransitionMock,
+  };
+});
+
 describe("sample-aligned UI components", () => {
   afterEach(() => {
     cleanup();
@@ -45,6 +56,7 @@ describe("sample-aligned UI components", () => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    completeRouteViewTransitionMock.mockReset();
     routerPushMock.mockReset();
   });
 
@@ -532,11 +544,48 @@ describe("sample-aligned UI components", () => {
     await screen.findByText(prompt);
 
     expect(container.querySelector("[data-agent-user-message]")).toBeTruthy();
-    expect(screen.getByLabelText("用户请求")).toBeTruthy();
+    expect(screen.getByRole("group", { name: "用户请求" })).toBeTruthy();
     expect(
       container.querySelector('[data-agent-transition-message="true"]')
     ).toBeTruthy();
     expect(screen.getAllByText(prompt)).toHaveLength(1);
+  });
+
+  it("completes the route view transition after the target user bubble is rendered", async () => {
+    const prompt = "Go to the office by 9";
+    window.sessionStorage.setItem("commute-planner:agent-prompt", prompt);
+    const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
+      if (String(url) === "/api/agent-sessions/session-1") {
+        return Response.json({
+          session: {
+            id: "session-1",
+            tripId: null,
+            status: "completed",
+            prompt,
+            messages: [
+              {
+                id: "message-1",
+                role: "user",
+                content: prompt,
+                createdAt: "2026-06-29T00:00:00.000Z",
+              },
+            ],
+            toolCalls: [],
+          },
+        });
+      }
+
+      return Response.json({ error: "unexpected request" }, { status: 500 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AgentEventList autoRedirect={false} sessionId="session-1" />);
+
+    expect(completeRouteViewTransitionMock).not.toHaveBeenCalled();
+
+    await screen.findByRole("group", { name: "用户请求" });
+
+    expect(completeRouteViewTransitionMock).toHaveBeenCalledTimes(1);
   });
 
   it("marks only the first duplicate user message as the agent transition target", async () => {

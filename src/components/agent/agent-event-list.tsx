@@ -17,7 +17,10 @@ import {
   type AgentMessageEventSource,
   type AgentToolCallEventSource,
 } from "@/lib/agent/events";
-import { takePendingAgentPrompt } from "@/lib/ui/agent-transition";
+import {
+  completeRouteViewTransition,
+  takePendingAgentPrompt,
+} from "@/lib/ui/agent-transition";
 
 export { getAgentConversationHref } from "@/lib/app-routes";
 export { buildAgentEvents, formatAgentToolName } from "@/lib/agent/events";
@@ -233,6 +236,17 @@ export function AgentEventList({
           );
         })?.id ?? null
       : null;
+
+  useEffect(() => {
+    if (!session) {
+      return;
+    }
+
+    if (transitionPrompt.length === 0 || transitionEventId) {
+      completeRouteViewTransition();
+    }
+  }, [session, transitionEventId, transitionPrompt]);
+
   const viewState = getAgentSessionViewState({ autoRedirect, session });
   const isSendDisabled = isSending || viewState.status === "running";
   const canSendMessages = allowMessages ?? !autoRedirect;
@@ -341,6 +355,7 @@ export function AgentEventList({
                           isTransitionMessage ? "true" : undefined
                         }
                         data-agent-user-message="true"
+                        role="group"
                       >
                         <p className="break-words">{event.detail}</p>
                       </div>

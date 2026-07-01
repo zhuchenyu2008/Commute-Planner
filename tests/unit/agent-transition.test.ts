@@ -3,18 +3,23 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AGENT_TRANSITION_PROMPT_KEY,
+  completeRouteViewTransition,
   savePendingAgentPrompt,
   startRouteViewTransition,
   takePendingAgentPrompt,
 } from "@/lib/ui/agent-transition";
 
 type TestViewTransitionDocument = {
-  startViewTransition?: (callback: () => void) => unknown;
+  startViewTransition?: (callback: () => void | Promise<void>) => unknown;
 };
 
 describe("agent transition helpers", () => {
   afterEach(() => {
+    if (typeof completeRouteViewTransition === "function") {
+      completeRouteViewTransition();
+    }
     sessionStorage.clear();
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     delete (document as unknown as TestViewTransitionDocument)
@@ -109,7 +114,7 @@ describe("agent transition helpers", () => {
 
   it("does not start a View Transition when reduced motion is preferred", () => {
     const navigate = vi.fn();
-    const startViewTransition = vi.fn((callback: () => void) => {
+    const startViewTransition = vi.fn((callback: () => void | Promise<void>) => {
       callback();
       return {};
     });
@@ -137,7 +142,7 @@ describe("agent transition helpers", () => {
 
   it("continues navigation when checking reduced motion throws", () => {
     const navigate = vi.fn();
-    const startViewTransition = vi.fn((callback: () => void) => {
+    const startViewTransition = vi.fn((callback: () => void | Promise<void>) => {
       callback();
       return {};
     });
@@ -157,7 +162,7 @@ describe("agent transition helpers", () => {
 
     try {
       expect(() => startRouteViewTransition(navigate)).not.toThrow();
-      expect(startViewTransition).toHaveBeenCalledWith(navigate);
+      expect(startViewTransition).toHaveBeenCalledWith(expect.any(Function));
       expect(navigate).toHaveBeenCalledTimes(1);
     } finally {
       if (originalMatchMedia) {
@@ -170,7 +175,7 @@ describe("agent transition helpers", () => {
 
   it("uses document.startViewTransition when available and invokes navigate exactly once", () => {
     const navigate = vi.fn();
-    const startViewTransition = vi.fn((callback: () => void) => {
+    const startViewTransition = vi.fn((callback: () => void | Promise<void>) => {
       callback();
       return {};
     });
@@ -179,7 +184,107 @@ describe("agent transition helpers", () => {
 
     startRouteViewTransition(navigate);
 
-    expect(startViewTransition).toHaveBeenCalledWith(navigate);
+    expect(startViewTransition).toHaveBeenCalledWith(expect.any(Function));
     expect(navigate).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the route view transition pending until completion is signaled", async () => {
+    const navigate = vi.fn();
+    let updateResult: void | Promise<void>;
+    const startViewTransition = vi.fn(
+      (callback: () => void | Promise<void>) => {
+        updateResult = callback();
+        return {};
+      }
+    );
+    (document as unknown as TestViewTransitionDocument).startViewTransition =
+      startViewTransition;
+
+    startRouteViewTransition(navigate);
+
+    expect(navigate).toHaveBeenCalledTimes(1);
+    expect(updateResult!).toHaveProperty("then");
+
+    let resolved = false;
+    const pending = (updateResult! as Promise<void>).then(() => {
+      resolved = true;
+    });
+
+    await Promise.resolve();
+
+    expect(resolved).toBe(false);
+
+    completeRouteViewTransition();
+    await pending;
+
+    expect(resolved).toBe(true);
+  });
+
+  it("falls back if route transition completion is never signaled", async () => {
+    vi.useFakeTimers();
+    const navigate = vi.fn();
+    let updateResult: void | Promise<void>;
+    const startViewTransition = vi.fn(
+      (callback: () => void | Promise<void>) => {
+        updateResult = callback();
+        return {};
+      }
+    );
+    (document as unknown as TestViewTransitionDocument).startViewTransition =
+      startViewTransition;
+
+    startRouteViewTransition(navigate);
+
+    let resolved = false;
+    const pending = (updateResult! as Promise<void>).then(() => {
+      resolved = true;
+    });
+
+    await Promise.resolve();
+    vi.advanceTimersByTime(1199);
+    await Promise.resolve();
+
+    expect(resolved).toBe(false);
+
+    vi.advanceTimersByTime(1);
+    await pending;
+
+    expect(resolved).toBe(true);
+  });
+
+  it("resolves a previous pending route transition before direct fallback navigation", async () => {
+    vi.useFakeTimers();
+    const firstNavigate = vi.fn();
+    let updateResult: void | Promise<void>;
+    const startViewTransition = vi.fn(
+      (callback: () => void | Promise<void>) => {
+        updateResult = callback();
+        return {};
+      }
+    );
+    (document as unknown as TestViewTransitionDocument).startViewTransition =
+      startViewTransition;
+
+    startRouteViewTransition(firstNavigate);
+
+    let resolved = false;
+    const pending = (updateResult! as Promise<void>).then(() => {
+      resolved = true;
+    });
+
+    await Promise.resolve();
+
+    expect(resolved).toBe(false);
+
+    delete (document as unknown as TestViewTransitionDocument)
+      .startViewTransition;
+
+    const secondNavigate = vi.fn();
+    startRouteViewTransition(secondNavigate);
+    await Promise.resolve();
+
+    expect(resolved).toBe(true);
+    expect(secondNavigate).toHaveBeenCalledTimes(1);
+    await pending;
   });
 });
