@@ -33,11 +33,19 @@ describe("template test emails", () => {
       subject: "通勤提醒：该出发了",
     });
     expect(emails[0].html).toContain("该出发了");
+    expect(emails[0].html).toContain("08:30");
+    expect(emails[0].html).toContain("45 分钟");
+    expect(emails[0].html).toContain("龙湖天街");
+    expect(emails[0].html).toContain("地铁 4号线");
     expect(emails[1]).toMatchObject({
       label: "时间更新",
       subject: "通勤时间已变化：测试通勤路线",
     });
     expect(emails[1].html).toContain("出发时间已更新");
+    expect(emails[1].html).toContain("08:35");
+    expect(emails[1].html).toContain("快速路高架");
+    expect(emails[1].html).toContain("绕城高速");
+    expect(emails[1].html).toContain("22°C");
     expect(emails[1].html).not.toContain("Lumina Velocity");
     expect(emails[1].text).not.toContain("Lumina Velocity");
     expect(emails.map((email) => email.html).join("\n")).not.toContain(

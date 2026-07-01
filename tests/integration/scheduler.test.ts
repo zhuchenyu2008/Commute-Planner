@@ -562,10 +562,10 @@ describe("scheduler reminder processing", () => {
     expect(routeChangeEmail.text).toContain("原最晚出发时间");
     expect(routeChangeEmail.text).toContain("17:00");
     expect(routeChangeEmail.text).not.toContain("Lumina Velocity");
+    expect(routeChangeEmail.text).toContain("预计通勤时长：40 分钟");
     expect(routeChangeEmail.html).toContain("Updated transit route");
-    expect(routeChangeEmail.html).toContain("40 分钟");
-    expect(routeChangeEmail.html).toContain("原最晚出发时间");
-    expect(routeChangeEmail.html).toContain("17:00");
+    expect(routeChangeEmail.html).toContain("40 <span");
+    expect(routeChangeEmail.html).not.toContain("原最晚出发时间");
     expect(routeChangeEmail.html).not.toContain("Lumina Velocity");
     expect(routeChangeEmail.html).not.toContain('href="#"');
   });

@@ -31,19 +31,24 @@ describe("email templates", () => {
     expect(email.text).toContain("查看实时地图");
     expect(email.text).toContain("https://commute.example.com/trips/trip-1");
     expect(email.html).toContain("AI Commute");
-    expect(email.html).toContain("该出发了");
-    expect(email.html).toContain("请在");
-    expect(email.html).toContain("前出发");
+    expect(email.html).toContain("行程提醒");
+    expect(email.html).toContain("该出发了！");
+    expect(email.html).toContain("最晚出发时间:");
     expect(email.html).toContain("08:35");
     expect(email.html).toContain("预计到达时间");
     expect(email.html).toContain("科技园区A座");
+    expect(email.html).toContain("推荐路线");
+    expect(email.html).toContain("目的地天气");
+    expect(email.html).toContain("background:#f2f4f6");
+    expect(email.html).toContain("border-radius:12px");
+    expect(email.html).toContain("border-radius:9999px");
     expect(email.html).toContain("查看实时地图");
     expect(email.html).toContain(
       'href="https://commute.example.com/trips/trip-1"'
     );
   });
 
-  it("uses mobile-safe email typography instead of oversized web headings", () => {
+  it("uses the email sample layout instead of the old stacked reminder layout", () => {
     const departureEmail = buildDepartureReminderEmail(baseInput);
     const routeChangeEmail = buildRouteChangeEmail({
       ...baseInput,
@@ -52,11 +57,11 @@ describe("email templates", () => {
     });
     const html = `${departureEmail.html}\n${routeChangeEmail.html}`;
 
-    expect(html).toContain("max-width:480px");
-    expect(html).toContain("padding:40px 44px");
-    expect(html).not.toContain("font-size:38px");
-    expect(html).not.toContain("font-size:34px");
-    expect(html).not.toContain("font-weight:800");
+    expect(html).toContain("max-width:600px");
+    expect(html).toContain("grid-template-columns:1fr 1fr");
+    expect(html).toContain("box-shadow:0 8px 18px rgba(37,99,235,0.22)");
+    expect(html).not.toContain("请在 ");
+    expect(html).not.toContain("预留足够通勤时间抵达");
   });
 
   it("builds a route change email that emphasizes the changed departure time", () => {
@@ -74,12 +79,15 @@ describe("email templates", () => {
     expect(email.text).toContain("原最晚出发时间：08:30");
     expect(email.text).toContain("最晚出发时间：08:35");
     expect(email.html).toContain("出发时间已更新");
-    expect(email.html).toContain("受路况影响，出发时间变化约 5 分钟");
-    expect(email.html).toContain("原最晚出发时间：");
-    expect(email.html).toContain("08:30");
+    expect(email.html).toContain("受路况影响，出发时间延后 5 分钟");
+    expect(email.html).toContain("最晚出发时间");
+    expect(email.html).toContain("font-size:56px");
+    expect(email.html).toContain("#EF4444");
     expect(email.html).toContain("08:35");
-    expect(email.html).not.toContain("AI Commute");
+    expect(email.html).toContain("AI Commute");
+    expect(email.html).toContain("行程提醒");
     expect(email.html).not.toContain("Lumina Velocity");
+    expect(email.html).not.toContain("原最晚出发时间");
   });
 
   it("escapes user-controlled text in html while keeping readable plain text", () => {
