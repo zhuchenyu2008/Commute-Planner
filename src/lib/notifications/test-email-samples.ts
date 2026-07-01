@@ -8,6 +8,27 @@ export type TemplateTestEmail = BuiltEmailTemplate & {
   label: "到点提醒" | "时间更新";
 };
 
+function appUrl(path: string) {
+  const baseUrl = process.env.APP_BASE_URL?.trim();
+
+  if (!baseUrl) return undefined;
+
+  try {
+    const parsedBaseUrl = new URL(baseUrl);
+
+    if (
+      parsedBaseUrl.protocol !== "http:" &&
+      parsedBaseUrl.protocol !== "https:"
+    ) {
+      return undefined;
+    }
+
+    return new URL(path, parsedBaseUrl).toString();
+  } catch {
+    return undefined;
+  }
+}
+
 export function buildTemplateTestEmails({
   now = new Date(),
 }: {
@@ -25,8 +46,8 @@ export function buildTemplateTestEmails({
     totalMinutes: 40,
     routeTitle: "地铁 4 号线 -> 共享单车",
     weatherSummary: "以行程详情为准",
-    detailsUrl: "/history",
-    stopMonitoringUrl: "/settings",
+    detailsUrl: appUrl("/history"),
+    stopMonitoringUrl: undefined,
   };
 
   return [

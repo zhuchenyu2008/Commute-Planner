@@ -152,15 +152,21 @@ function getReminderCadenceMinutes(job: DueReminderJob) {
 function absoluteAppUrl(path: string) {
   const baseUrl = process.env.APP_BASE_URL?.trim();
 
-  if (!baseUrl) return path;
+  if (!baseUrl) return undefined;
 
   try {
-    return new URL(
-      path,
-      baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`
-    ).toString();
+    const parsedBaseUrl = new URL(baseUrl);
+
+    if (
+      parsedBaseUrl.protocol !== "http:" &&
+      parsedBaseUrl.protocol !== "https:"
+    ) {
+      return undefined;
+    }
+
+    return new URL(path, parsedBaseUrl).toString();
   } catch {
-    return path;
+    return undefined;
   }
 }
 

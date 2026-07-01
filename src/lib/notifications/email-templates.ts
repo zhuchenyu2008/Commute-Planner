@@ -23,7 +23,9 @@ export type BuiltEmailTemplate = {
   html: string;
 };
 
+const DEFAULT_APP_NAME = "AI Commute";
 const BRAND_BLUE = "#2563eb";
+const LINK_BLUE = "#0284c7";
 const SURFACE = "#f7f9fb";
 const TEXT = "#191c1e";
 const MUTED = "#434655";
@@ -56,83 +58,139 @@ function formatMinutes(minutes: number | null | undefined) {
     : "待确认";
 }
 
-function normalizeUrl(url: string | undefined) {
+function normalizeHttpUrl(url: string | undefined) {
   const trimmed = url?.trim();
 
-  if (!trimmed) return "#";
-  if (trimmed === "#" || (trimmed.startsWith("/") && !trimmed.startsWith("//"))) {
-    return trimmed;
+  if (!trimmed) return null;
+
+  try {
+    const parsed = new URL(trimmed);
+
+    return parsed.protocol === "http:" || parsed.protocol === "https:"
+      ? parsed.toString()
+      : null;
+  } catch {
+    return null;
   }
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-
-  return "#";
 }
 
-function keyFact(label: string, value: string, icon: string) {
-  return `
-    <tr>
-      <td style="width:44px;vertical-align:top;color:${MUTED};font-size:26px;">${icon}</td>
-      <td style="vertical-align:top;">
-        <div style="font-size:13px;color:${MUTED};line-height:20px;">${escapeHtml(label)}</div>
-        <div style="font-size:26px;font-weight:700;color:${TEXT};line-height:34px;">${escapeHtml(value)}</div>
-      </td>
-    </tr>`;
-}
-
-function baseContainer(innerHtml: string) {
-  return `<!doctype html>
-<html lang="zh-CN">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>AI Commute</title>
-  </head>
-  <body style="margin:0;background:${SURFACE};font-family:Inter,Arial,'Microsoft YaHei',sans-serif;color:${TEXT};">
-    <div style="max-width:600px;margin:0 auto;background:#ffffff;">
-      ${innerHtml}
-    </div>
-  </body>
-</html>`;
+function resolveAppName(input: CommuteEmailTemplateInput) {
+  return input.appName?.trim() || DEFAULT_APP_NAME;
 }
 
 function valueOrPending(value: string | null | undefined) {
   return value?.trim() || "待确认";
 }
 
-function detailsBlock(input: CommuteEmailTemplateInput) {
+function baseContainer(title: string, innerHtml: string) {
+  return `<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>${escapeHtml(title)}</title>
+  </head>
+  <body style="margin:0;background:${SURFACE};font-family:Inter,Arial,'Microsoft YaHei',sans-serif;color:${TEXT};">
+    <div style="max-width:560px;margin:0 auto;background:#ffffff;">
+      <div style="padding:32px 28px 36px;">
+        ${innerHtml}
+      </div>
+    </div>
+  </body>
+</html>`;
+}
+
+function timeValue(value: string) {
+  return `<span style="color:${LINK_BLUE};font-weight:800;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px;">${escapeHtml(value)}</span>`;
+}
+
+function metricRow({
+  icon,
+  label,
+  value,
+  accent = false,
+}: {
+  icon: string;
+  label: string;
+  value: string;
+  accent?: boolean;
+}) {
+  return `
+    <tr>
+      <td style="width:56px;padding:9px 14px 9px 0;vertical-align:top;font-size:30px;line-height:36px;">${icon}</td>
+      <td style="padding:8px 0;vertical-align:top;">
+        <div style="font-size:16px;color:${MUTED};line-height:24px;">${escapeHtml(label)}</div>
+        <div style="margin-top:2px;font-size:34px;font-weight:800;line-height:42px;color:${accent ? LINK_BLUE : TEXT};">${accent ? timeValue(value) : escapeHtml(value)}</div>
+      </td>
+    </tr>`;
+}
+
+function metricsBlock(input: CommuteEmailTemplateInput) {
+  return `
+    <table role="presentation" style="width:100%;border-collapse:collapse;margin-top:28px;">
+      ${metricRow({
+        icon: "⏱️",
+        label: "最晚出发时间",
+        value: formatBeijingTime(input.latestDepartAt),
+        accent: true,
+      })}
+      ${metricRow({
+        icon: "🏁",
+        label: "预计到达时间",
+        value: formatBeijingTime(input.targetArriveAt),
+        accent: true,
+      })}
+      ${metricRow({
+        icon: "🧭",
+        label: "预计通勤时长",
+        value: formatMinutes(input.totalMinutes),
+      })}
+    </table>`;
+}
+
+function detailsCard(input: CommuteEmailTemplateInput) {
   const destinationAddress = valueOrPending(input.destinationAddress);
   const routeTitle = valueOrPending(input.routeTitle);
   const weatherSummary = valueOrPending(input.weatherSummary);
 
   return `
-    <table role="presentation" style="width:100%;border-collapse:collapse;margin-top:20px;">
-      ${keyFact("最晚出发时间", formatBeijingTime(input.latestDepartAt), "⏱")}
-      ${keyFact("预计到达时间", formatBeijingTime(input.targetArriveAt), "🏁")}
-      ${keyFact("预计通勤时长", formatMinutes(input.totalMinutes), "🧭")}
-    </table>
-    <div style="margin-top:24px;padding:18px;border:1px solid ${OUTLINE};border-radius:12px;background:#ffffff;">
-      <div style="font-size:13px;color:${MUTED};line-height:20px;">目的地</div>
-      <div style="font-size:18px;font-weight:700;color:${TEXT};line-height:28px;">${escapeHtml(input.destinationName)}</div>
-      <div style="font-size:14px;color:${MUTED};line-height:22px;">${escapeHtml(destinationAddress)}</div>
-      <div style="height:14px;"></div>
-      <div style="font-size:13px;color:${MUTED};line-height:20px;">路线</div>
-      <div style="font-size:15px;color:${TEXT};line-height:24px;">${escapeHtml(routeTitle)}</div>
-      <div style="height:14px;"></div>
-      <div style="font-size:13px;color:${MUTED};line-height:20px;">天气</div>
-      <div style="font-size:15px;color:${TEXT};line-height:24px;">${escapeHtml(weatherSummary)}</div>
+    <div style="margin-top:28px;padding:22px 24px;border:1px solid ${OUTLINE};border-radius:18px;background:#ffffff;">
+      <div style="font-size:16px;color:${MUTED};line-height:24px;">目的地</div>
+      <div style="margin-top:4px;font-size:23px;font-weight:800;color:${TEXT};line-height:32px;">${escapeHtml(input.destinationName)}</div>
+      <div style="margin-top:4px;font-size:16px;color:${MUTED};line-height:24px;">${escapeHtml(destinationAddress)}</div>
+      <div style="height:22px;"></div>
+      <div style="font-size:16px;color:${MUTED};line-height:24px;">路线</div>
+      <div style="margin-top:4px;font-size:19px;font-weight:700;color:${TEXT};line-height:28px;">${escapeHtml(routeTitle)}</div>
+      <div style="height:22px;"></div>
+      <div style="font-size:16px;color:${MUTED};line-height:24px;">天气</div>
+      <div style="margin-top:4px;font-size:19px;font-weight:700;color:${TEXT};line-height:28px;">${escapeHtml(weatherSummary)}</div>
     </div>`;
 }
 
-function ctaBlock(detailsUrl: string, stopMonitoringUrl: string) {
-  const safeDetailsUrl = escapeHtml(normalizeUrl(detailsUrl));
-  const safeStopMonitoringUrl = escapeHtml(normalizeUrl(stopMonitoringUrl));
+function actionAndFooterBlock(input: CommuteEmailTemplateInput, footerText: string) {
+  const detailsUrl = normalizeHttpUrl(input.detailsUrl);
+  const stopMonitoringUrl = normalizeHttpUrl(input.stopMonitoringUrl);
+  const cta = detailsUrl
+    ? `
+      <div style="margin-top:28px;">
+        <a href="${escapeHtml(detailsUrl)}" style="display:inline-block;background:${BRAND_BLUE};color:#ffffff;text-decoration:none;font-size:18px;font-weight:800;line-height:26px;padding:15px 30px;border-radius:10px;">查看实时地图</a>
+      </div>`
+    : "";
+  const stopLink = stopMonitoringUrl
+    ? ` <a href="${escapeHtml(stopMonitoringUrl)}" style="color:${MUTED};text-decoration:underline;">停止监控此行程</a>`
+    : "";
 
   return `
-    <div style="margin-top:28px;">
-      <a href="${safeDetailsUrl}" style="display:inline-block;background:${BRAND_BLUE};color:#ffffff;text-decoration:none;font-size:16px;font-weight:700;line-height:24px;padding:13px 22px;border-radius:8px;">查看实时地图</a>
-    </div>
-    <div style="margin-top:22px;padding-top:18px;border-top:1px solid ${OUTLINE};font-size:12px;color:${MUTED};line-height:20px;">
-      如不再需要提醒，可<a href="${safeStopMonitoringUrl}" style="color:${MUTED};">停止监控此行程</a>。
+    ${cta}
+    <div style="margin-top:24px;padding-top:18px;border-top:1px solid ${OUTLINE};font-size:12px;color:${MUTED};line-height:20px;">
+      ${escapeHtml(footerText)}${stopLink}
+    </div>`;
+}
+
+function compactHeader(appName: string, tone: "brand" | "error" = "brand") {
+  return `
+    <div style="font-size:18px;font-weight:800;color:${tone === "error" ? ERROR : BRAND_BLUE};line-height:26px;">
+      ${escapeHtml(appName)}
     </div>`;
 }
 
@@ -142,7 +200,9 @@ function buildPlainText(
   input: CommuteEmailTemplateInput,
   intro?: string
 ) {
-  return [
+  const detailsUrl = normalizeHttpUrl(input.detailsUrl);
+  const stopMonitoringUrl = normalizeHttpUrl(input.stopMonitoringUrl);
+  const lines = [
     brand,
     heading,
     intro,
@@ -154,26 +214,29 @@ function buildPlainText(
     `地址：${valueOrPending(input.destinationAddress)}`,
     `路线：${valueOrPending(input.routeTitle)}`,
     `天气：${valueOrPending(input.weatherSummary)}`,
-    `查看实时地图：${normalizeUrl(input.detailsUrl)}`,
-    `停止监控：${normalizeUrl(input.stopMonitoringUrl)}`,
-  ]
-    .filter(Boolean)
-    .join("\n");
+    detailsUrl ? `查看实时地图：${detailsUrl}` : null,
+    stopMonitoringUrl ? `停止监控：${stopMonitoringUrl}` : null,
+  ];
+
+  return lines.filter((line): line is string => Boolean(line)).join("\n");
 }
 
 export function buildDepartureReminderEmail(
   input: CommuteEmailTemplateInput
 ): BuiltEmailTemplate {
-  const appName = input.appName?.trim() || "AI Commute";
-
-  const html = baseContainer(`
-    <div style="padding:28px 28px 32px;">
-      <div style="font-size:14px;font-weight:700;color:${BRAND_BLUE};line-height:22px;">${escapeHtml(appName)}</div>
-      <h1 style="margin:12px 0 0;font-size:30px;line-height:38px;color:${TEXT};">该出发了</h1>
-      <p style="margin:12px 0 0;font-size:15px;line-height:24px;color:${MUTED};">请在 ${escapeHtml(formatBeijingTime(input.latestDepartAt))} 前出发，预留足够通勤时间抵达 ${escapeHtml(input.destinationName)}。</p>
-      ${detailsBlock(input)}
-      ${ctaBlock(input.detailsUrl ?? "#", input.stopMonitoringUrl ?? "#")}
-    </div>`);
+  const appName = resolveAppName(input);
+  const latestDepartAt = formatBeijingTime(input.latestDepartAt);
+  const html = baseContainer(
+    "通勤提醒：该出发了",
+    `
+      ${compactHeader(appName)}
+      <h1 style="margin:22px 0 0;font-size:38px;line-height:48px;color:${TEXT};font-weight:800;">该出发了</h1>
+      <p style="margin:18px 0 0;font-size:18px;line-height:32px;color:${MUTED};">请在 ${timeValue(latestDepartAt)} 前出发，预留足够通勤时间抵达 ${escapeHtml(input.destinationName)}。</p>
+      ${metricsBlock(input)}
+      ${detailsCard(input)}
+      ${actionAndFooterBlock(input, "此为自动发送的行程提醒邮件。")}
+    `
+  );
 
   return {
     subject: "通勤提醒：该出发了",
@@ -185,33 +248,32 @@ export function buildDepartureReminderEmail(
 export function buildRouteChangeEmail(
   input: RouteChangeEmailTemplateInput
 ): BuiltEmailTemplate {
-  const changeText = `受路况影响，出发时间变化约 ${Math.round(input.changeMinutes)} 分钟`;
+  const appName = resolveAppName(input);
+  const roundedChangeMinutes = Math.round(Math.abs(input.changeMinutes));
+  const changeText = `受路况影响，出发时间变化约 ${roundedChangeMinutes} 分钟`;
   const previousDepartAt = formatBeijingTime(input.previousLatestDepartAt);
   const plainTextIntro = [
     changeText,
     `原最晚出发时间：${previousDepartAt}`,
   ].join("\n");
-
-  const html = baseContainer(`
-    <div style="padding:28px 28px 32px;">
-      <div style="font-size:14px;font-weight:700;color:${ERROR};line-height:22px;">Lumina Velocity</div>
-      <h1 style="margin:12px 0 0;font-size:30px;line-height:38px;color:${TEXT};">出发时间已更新</h1>
-      <p style="margin:12px 0 0;font-size:15px;line-height:24px;color:${MUTED};">${escapeHtml(changeText)}，请按新的最晚出发时间安排。</p>
-      <div style="margin-top:18px;padding:14px 16px;border-left:4px solid ${ERROR};background:#fff7f7;font-size:14px;color:${TEXT};line-height:22px;">
-        原最晚出发时间：${escapeHtml(previousDepartAt)}
+  const html = baseContainer(
+    `通勤时间已变化：${input.tripTitle}`,
+    `
+      ${compactHeader(appName, "error")}
+      <h1 style="margin:22px 0 0;font-size:38px;line-height:48px;color:${TEXT};font-weight:800;">出发时间已更新</h1>
+      <p style="margin:18px 0 0;font-size:18px;line-height:32px;color:${MUTED};">${escapeHtml(changeText)}，请按新的最晚出发时间安排。</p>
+      <div style="margin-top:22px;padding:18px 20px;border-left:6px solid ${ERROR};background:#fff7f7;font-size:17px;color:${TEXT};line-height:26px;">
+        原最晚出发时间：${timeValue(previousDepartAt)}
       </div>
-      ${detailsBlock(input)}
-      ${ctaBlock(input.detailsUrl ?? "#", input.stopMonitoringUrl ?? "#")}
-    </div>`);
+      ${metricsBlock(input)}
+      ${detailsCard(input)}
+      ${actionAndFooterBlock(input, "此为自动发送的行程复查邮件。")}
+    `
+  );
 
   return {
     subject: `通勤时间已变化：${input.tripTitle}`,
-    text: buildPlainText(
-      "Lumina Velocity",
-      "出发时间已更新",
-      input,
-      plainTextIntro
-    ),
+    text: buildPlainText(appName, "出发时间已更新", input, plainTextIntro),
     html,
   };
 }

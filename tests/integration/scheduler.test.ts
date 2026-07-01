@@ -261,6 +261,13 @@ describe("scheduler reminder processing", () => {
     expect(sendEmailMock.mock.calls[0][0].html).not.toContain(
       "localhost:3000"
     );
+    expect(sendEmailMock.mock.calls[0][0].html).not.toContain(
+      "查看实时地图"
+    );
+    expect(sendEmailMock.mock.calls[0][0].html).not.toContain('href="#"');
+    expect(sendEmailMock.mock.calls[0][0].text).not.toContain(
+      "查看实时地图："
+    );
 
     await processDueReminderJobs({ now });
 
@@ -553,10 +560,13 @@ describe("scheduler reminder processing", () => {
     expect(routeChangeEmail.text).toContain("40 分钟");
     expect(routeChangeEmail.text).toContain("原最晚出发时间");
     expect(routeChangeEmail.text).toContain("17:00");
+    expect(routeChangeEmail.text).not.toContain("Lumina Velocity");
     expect(routeChangeEmail.html).toContain("Updated transit route");
     expect(routeChangeEmail.html).toContain("40 分钟");
     expect(routeChangeEmail.html).toContain("原最晚出发时间");
     expect(routeChangeEmail.html).toContain("17:00");
+    expect(routeChangeEmail.html).not.toContain("Lumina Velocity");
+    expect(routeChangeEmail.html).not.toContain('href="#"');
   });
 });
 

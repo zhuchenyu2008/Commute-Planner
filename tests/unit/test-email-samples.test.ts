@@ -8,11 +8,24 @@ import {
 import { buildTemplateTestEmails } from "@/lib/notifications/test-email-samples";
 import { sendTemplateTestEmails } from "@/lib/notifications/test-email-sender";
 
+function restoreEnv(key: string, value: string | undefined) {
+  if (value === undefined) {
+    delete process.env[key];
+  } else {
+    process.env[key] = value;
+  }
+}
+
 describe("template test emails", () => {
   it("builds one departure email and one route-change email", () => {
+    const savedAppBaseUrl = process.env.APP_BASE_URL;
+    delete process.env.APP_BASE_URL;
+
     const emails = buildTemplateTestEmails({
       now: new Date("2026-07-01T00:00:00.000Z"),
     });
+
+    restoreEnv("APP_BASE_URL", savedAppBaseUrl);
 
     expect(emails).toHaveLength(2);
     expect(emails[0]).toMatchObject({
@@ -25,6 +38,38 @@ describe("template test emails", () => {
       subject: "通勤时间已变化：测试通勤路线",
     });
     expect(emails[1].html).toContain("出发时间已更新");
+    expect(emails[1].html).not.toContain("Lumina Velocity");
+    expect(emails[1].text).not.toContain("Lumina Velocity");
+    expect(emails.map((email) => email.html).join("\n")).not.toContain(
+      'href="#"'
+    );
+    expect(emails.map((email) => email.html).join("\n")).not.toContain(
+      'href="/history"'
+    );
+    expect(emails.map((email) => email.text).join("\n")).not.toContain(
+      "查看实时地图：#"
+    );
+    expect(emails.map((email) => email.text).join("\n")).not.toContain(
+      "查看实时地图：/history"
+    );
+  });
+
+  it("uses APP_BASE_URL for clickable sample email actions", () => {
+    const savedAppBaseUrl = process.env.APP_BASE_URL;
+    process.env.APP_BASE_URL = "https://commute.example.com";
+
+    const emails = buildTemplateTestEmails({
+      now: new Date("2026-07-01T00:00:00.000Z"),
+    });
+
+    restoreEnv("APP_BASE_URL", savedAppBaseUrl);
+
+    expect(emails[0].html).toContain(
+      'href="https://commute.example.com/history"'
+    );
+    expect(emails[0].text).toContain(
+      "查看实时地图：https://commute.example.com/history"
+    );
   });
 });
 
