@@ -40,6 +40,9 @@ npm run prisma:migrate
 npm run prisma:deploy
 npm run prisma:seed
 npm run scheduler:tick
+npm run email:test-templates
+npm run email:test-departure-reminder
+npm run email:test-route-change
 npm run telegram:poll
 ```
 
@@ -191,5 +194,15 @@ Email 通知：
 - `SMTP_SECURE`：设为 `true` 时使用 secure SMTP。
 - `SMTP_FROM`：发件人；未配置时使用 `SMTP_USER`。
 - `SMTP_TLS_USE_SYSTEM_CA`：设为 `true` 时尝试加载系统 CA，用于处理本机已信任但 Node.js 默认不信任的 SMTP 证书链。
+
+本地发送 mock 邮件模板：
+
+```bash
+npm run email:test-templates
+npm run email:test-departure-reminder
+npm run email:test-route-change
+```
+
+`email:test-templates` 会发送全部 mock 模板；`email:test-departure-reminder` 只发送出发提醒；`email:test-route-change` 只发送路线变化提醒。命令会读取数据库中已配置的邮件接收人，并要求 SMTP 配置完整。
 
 通知 adapter 配置不完整时，发送会被跳过并记录状态，不会阻塞调度器继续处理其他 reminder jobs。
