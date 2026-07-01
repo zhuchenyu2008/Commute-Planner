@@ -57,6 +57,15 @@ type StartAllModuleWithRuntime = StartAllModule & {
   buildServicePlan: (
     values: Record<string, string>
   ) => Array<{ name: string; command: string[]; kind: "process" | "scheduler" }>;
+  buildStartupReport: (input: {
+    values: Record<string, string>;
+    services: Array<{
+      name: string;
+      command: string[];
+      kind: "process" | "scheduler";
+    }>;
+    webReady: boolean;
+  }) => string[];
   createChildEnv: (
     values: Record<string, string>,
     baseEnv?: Record<string, string | undefined>
@@ -504,6 +513,60 @@ describe("native one-click deployment runtime planning", () => {
       .toEqual(["web", "scheduler"]);
     expect(buildServicePlan({ TELEGRAM_BOT_TOKEN: "bot-token" }).map((service) => service.name))
       .toEqual(["web", "scheduler", "telegram"]);
+  });
+
+  it("reports startup readiness, service states, access URL, and login credentials", async () => {
+    const { buildServicePlan, buildStartupReport } =
+      await loadRuntimeStartAll();
+    const values = {
+      PORT: "3100",
+      SEED_USER_EMAIL: "user@example.local",
+      SEED_USER_PASSWORD: "generated-password",
+      TELEGRAM_BOT_TOKEN: ""
+    };
+
+    expect(
+      buildStartupReport({
+        values,
+        services: buildServicePlan(values),
+        webReady: true
+      })
+    ).toEqual([
+      "[ready] Native deployment started.",
+      "[ready] Web: http://127.0.0.1:3100 (ready)",
+      "[ready] Scheduler: running; ticks every 60 seconds.",
+      "[ready] Telegram: skipped; TELEGRAM_BOT_TOKEN is empty.",
+      "[ready] Login user: user@example.local",
+      "[ready] Login password: generated-password",
+      "[ready] Stop all services: press Ctrl+C."
+    ]);
+  });
+
+  it("reports when the web server is still starting after the readiness wait", async () => {
+    const { buildServicePlan, buildStartupReport } =
+      await loadRuntimeStartAll();
+    const values = {
+      SEED_USER_EMAIL: "user@example.local",
+      SEED_USER_PASSWORD: "generated-password",
+      TELEGRAM_BOT_TOKEN: "bot-token"
+    };
+
+    expect(
+      buildStartupReport({
+        values,
+        services: buildServicePlan(values),
+        webReady: false
+      })
+    ).toContain(
+      "[ready] Web: http://127.0.0.1:3000 (still starting; watch [web] logs)"
+    );
+    expect(
+      buildStartupReport({
+        values,
+        services: buildServicePlan(values),
+        webReady: false
+      })
+    ).toContain("[ready] Telegram: running.");
   });
 
   it("merges prepared values into child process env with prepared values winning", async () => {

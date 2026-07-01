@@ -254,6 +254,26 @@ export function buildServicePlan(values) {
   return services;
 }
 
+export function buildStartupReport({ values, services, webReady }) {
+  const webUrl = getWebUrl(values);
+  const telegramRunning = services.some((service) => service.name === "telegram");
+  const webStatus = webReady
+    ? "ready"
+    : "still starting; watch [web] logs";
+
+  return [
+    "[ready] Native deployment started.",
+    `[ready] Web: ${webUrl} (${webStatus})`,
+    "[ready] Scheduler: running; ticks every 60 seconds.",
+    telegramRunning
+      ? "[ready] Telegram: running."
+      : "[ready] Telegram: skipped; TELEGRAM_BOT_TOKEN is empty.",
+    `[ready] Login user: ${values.SEED_USER_EMAIL || "(not configured)"}`,
+    `[ready] Login password: ${values.SEED_USER_PASSWORD || "(not configured)"}`,
+    "[ready] Stop all services: press Ctrl+C."
+  ];
+}
+
 function isEmpty(value) {
   return value === undefined || value.trim() === "";
 }
@@ -333,6 +353,12 @@ function isTrailingBlankRawLine(lines) {
 
 function commandToString(command) {
   return command.join(" ");
+}
+
+function getWebUrl(values) {
+  const port = values.PORT?.trim() || process.env.PORT || "3000";
+
+  return `http://127.0.0.1:${port}`;
 }
 
 export function createChildEnv(values, baseEnv = process.env) {
@@ -579,6 +605,40 @@ async function startServices({ cwd, values, env }) {
       children.push(startProcessService(service, { cwd, env, state }));
     }
   }
+
+  const webReady = await waitForWebReady(getWebUrl(values));
+  for (const line of buildStartupReport({ values, services, webReady })) {
+    console.log(line);
+  }
+}
+
+async function waitForWebReady(
+  url,
+  { timeoutMs = 60_000, intervalMs = 1_000, fetchImpl = globalThis.fetch } = {}
+) {
+  if (typeof fetchImpl !== "function") {
+    return false;
+  }
+
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetchImpl(url, { method: "GET" });
+      if (response) {
+        return true;
+      }
+    } catch {
+      // The web process may still be compiling or binding the port.
+    }
+
+    await sleep(intervalMs);
+  }
+
+  return false;
+}
+
+function sleep(ms) {
+  return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 }
 
 export async function main(argv = process.argv.slice(2), cwd = process.cwd()) {
