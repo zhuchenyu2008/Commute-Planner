@@ -1,16 +1,16 @@
 import { prisma } from "@/lib/db";
 import { sendEmail } from "@/lib/notifications/email";
-import { selectTemplateEmailRecipient } from "@/lib/notifications/test-email-recipient";
+import {
+  buildTemplateEmailRecipientQuery,
+  selectTemplateEmailRecipient,
+} from "@/lib/notifications/test-email-recipient";
+import { sendTemplateTestEmails } from "@/lib/notifications/test-email-sender";
 import { buildTemplateTestEmails } from "@/lib/notifications/test-email-samples";
 
 async function main() {
-  const settings = await prisma.userSettings.findMany({
-    where: {
-      emailRecipient: { not: null },
-    },
-    orderBy: { updatedAt: "desc" },
-    take: 10,
-  });
+  const settings = await prisma.userSettings.findMany(
+    buildTemplateEmailRecipientQuery()
+  );
 
   const recipient = selectTemplateEmailRecipient(settings);
 
@@ -20,24 +20,12 @@ async function main() {
 
   const emails = buildTemplateTestEmails();
 
-  for (const email of emails) {
-    const result = await sendEmail({
-      to: recipient,
-      subject: `[测试] ${email.subject}`,
-      text: email.text,
-      html: email.html,
-    });
-
-    console.log(
-      `[${email.label}] ${result.status} -> ${result.recipient ?? recipient}${
-        result.error ? ` (${result.error})` : ""
-      }`
-    );
-
-    if (result.status !== "sent") {
-      throw new Error(`${email.label}测试邮件未发送成功：${result.error ?? result.status}`);
-    }
-  }
+  await sendTemplateTestEmails({
+    recipient,
+    emails,
+    sendEmail,
+    log: console.log,
+  });
 }
 
 main()
