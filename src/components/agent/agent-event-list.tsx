@@ -17,6 +17,7 @@ import {
   type AgentMessageEventSource,
   type AgentToolCallEventSource,
 } from "@/lib/agent/events";
+import { takePendingAgentPrompt } from "@/lib/ui/agent-transition";
 
 export { getAgentConversationHref } from "@/lib/app-routes";
 export { buildAgentEvents, formatAgentToolName } from "@/lib/agent/events";
@@ -86,7 +87,12 @@ export function AgentEventList({
   const [message, setMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [pollingVersion, setPollingVersion] = useState(0);
+  const [transitionPrompt, setTransitionPrompt] = useState("");
   const hasContinuedRunRef = useRef(false);
+
+  useEffect(() => {
+    setTransitionPrompt(takePendingAgentPrompt());
+  }, [sessionId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -246,13 +252,6 @@ export function AgentEventList({
         </div>
       </div>
 
-      <div className="rounded-2xl bg-white/60 p-4">
-        <p className="text-sm font-semibold text-[#434655]">输入请求</p>
-        <p className="mt-1 break-words text-base text-[#191c1e]">
-          {session?.prompt ?? "正在加载请求..."}
-        </p>
-      </div>
-
       {error ? (
         <p className="rounded-2xl bg-[#ffdad6] p-4 text-sm font-semibold text-[#93000a]">
           {error}
@@ -301,37 +300,62 @@ export function AgentEventList({
             </p>
           </>
         ) : (
-          events.map((event, index) => (
-            <div className="contents" key={event.id}>
-              <div className="flex flex-col items-center gap-1 pt-3">
-                <div className="flex size-9 items-center justify-center rounded-full bg-[#f2f4f6] text-[#2563eb]">
-                  {event.kind === "tool" ? (
-                    <Wrench aria-hidden="true" className="size-4" />
+          events.map((event, index) => {
+            const isUserMessage =
+              event.kind === "message" && event.status === "user";
+            const isTransitionMessage =
+              isUserMessage &&
+              transitionPrompt.length > 0 &&
+              transitionPrompt === event.detail;
+
+            return (
+              <div className="contents" key={event.id}>
+                <div className="flex flex-col items-center gap-1 pt-3">
+                  <div className="flex size-9 items-center justify-center rounded-full bg-[#f2f4f6] text-[#2563eb]">
+                    {event.kind === "tool" ? (
+                      <Wrench aria-hidden="true" className="size-4" />
+                    ) : (
+                      <MessageCircle aria-hidden="true" className="size-4" />
+                    )}
+                  </div>
+                  {index < events.length - 1 ? (
+                    <div className="min-h-5 w-px grow bg-[#c3c6d7]" />
+                  ) : null}
+                </div>
+                <div className="min-w-0 py-3">
+                  {isUserMessage ? (
+                    <div className="flex justify-end">
+                      <div
+                        className={`max-w-[min(100%,32rem)] rounded-2xl rounded-tr-md bg-[#2563eb] px-4 py-3 text-sm font-semibold leading-6 text-white shadow-sm ${
+                          isTransitionMessage ? "agent-prompt-target" : ""
+                        }`}
+                        data-agent-transition-message={
+                          isTransitionMessage ? "true" : undefined
+                        }
+                        data-agent-user-message="true"
+                      >
+                        <p className="break-words">{event.detail}</p>
+                      </div>
+                    </div>
                   ) : (
-                    <MessageCircle aria-hidden="true" className="size-4" />
+                    <div className="rounded-2xl bg-white/65 p-4 shadow-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="break-words text-sm font-bold text-[#191c1e]">
+                          {event.title}
+                        </p>
+                        <span className="shrink-0 rounded-full bg-[#f2f4f6] px-2.5 py-1 text-xs font-bold text-[#434655]">
+                          {formatAgentEventStatus(event.status)}
+                        </span>
+                      </div>
+                      <p className="mt-2 break-words text-sm leading-6 text-[#434655]">
+                        {event.detail}
+                      </p>
+                    </div>
                   )}
                 </div>
-                {index < events.length - 1 ? (
-                  <div className="min-h-5 w-px grow bg-[#c3c6d7]" />
-                ) : null}
               </div>
-              <div className="min-w-0 py-3">
-                <div className="rounded-2xl bg-white/65 p-4 shadow-sm">
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="break-words text-sm font-bold text-[#191c1e]">
-                      {event.title}
-                    </p>
-                    <span className="shrink-0 rounded-full bg-[#f2f4f6] px-2.5 py-1 text-xs font-bold text-[#434655]">
-                      {formatAgentEventStatus(event.status)}
-                    </span>
-                  </div>
-                  <p className="mt-2 break-words text-sm leading-6 text-[#434655]">
-                    {event.detail}
-                  </p>
-                </div>
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
         </div>
       </div>

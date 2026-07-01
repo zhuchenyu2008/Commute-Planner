@@ -22,6 +22,49 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.5);
 }
 
+.agent-prompt-source {
+  view-transition-name: agent-prompt;
+}
+
+.agent-prompt-target[data-agent-transition-message="true"] {
+  view-transition-name: agent-prompt;
+}
+
+::view-transition-old(agent-prompt),
+::view-transition-new(agent-prompt) {
+  animation-duration: 360ms;
+  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+.agent-prompt-target {
+  animation: agent-message-enter 320ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes agent-message-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-prompt-source,
+  .agent-prompt-target[data-agent-transition-message="true"] {
+    view-transition-name: none;
+  }
+
+  .agent-prompt-target,
+  ::view-transition-old(agent-prompt),
+  ::view-transition-new(agent-prompt) {
+    animation: none;
+  }
+}
+
 @layer components {
   .form-field-frame {
     @apply border-outline-variant bg-white/95 shadow-sm shadow-slate-200/60 focus:border-primary-container;

@@ -3,6 +3,10 @@
 import React, { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Mic, Search } from "lucide-react";
+import {
+  savePendingAgentPrompt,
+  startRouteViewTransition,
+} from "@/lib/ui/agent-transition";
 
 export function getAgentStartResult(
   status: number,
@@ -62,6 +66,12 @@ export function CommuteInput() {
         return;
       }
 
+      if (result.route.startsWith("/agent/")) {
+        savePendingAgentPrompt(trimmedPrompt);
+        startRouteViewTransition(() => router.push(result.route));
+        return;
+      }
+
       router.push(result.route);
     } catch {
       setError("无法开始规划。");
@@ -72,7 +82,10 @@ export function CommuteInput() {
 
   return (
     <form className="w-full space-y-3" onSubmit={onSubmit}>
-      <div className="group relative">
+      <div
+        className="agent-prompt-source group relative"
+        data-agent-transition-source="true"
+      >
         <Search
           aria-hidden="true"
           className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-[#737686] transition group-focus-within:text-[#2563eb]"
@@ -92,6 +105,7 @@ export function CommuteInput() {
           <Mic aria-hidden="true" className="size-5" />
         </button>
         <button
+          aria-label="Start commute planning"
           className="absolute right-2 top-1/2 flex h-12 min-w-12 -translate-y-1/2 items-center justify-center rounded-full bg-[#2563eb] px-4 text-sm font-bold text-white shadow-sm transition hover:bg-[#004ac6] disabled:cursor-not-allowed disabled:opacity-60"
           disabled={isSubmitting}
           type="submit"

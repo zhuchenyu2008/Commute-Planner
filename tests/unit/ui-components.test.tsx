@@ -40,6 +40,7 @@ vi.mock("next/navigation", () => ({
 describe("sample-aligned UI components", () => {
   afterEach(() => {
     cleanup();
+    window.sessionStorage.clear();
     vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -289,6 +290,63 @@ describe("sample-aligned UI components", () => {
     });
   });
 
+  it("stores the prompt before routing from home to agent", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json(
+        { sessionId: "session-1", status: "running" },
+        { status: 201 }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { container } = render(<CommuteInput />);
+
+    expect(container.querySelector("[data-agent-transition-source]")).toBeTruthy();
+
+    const promptInput = container.querySelector("input");
+    const submitButton = container.querySelector('button[type="submit"]');
+    expect(promptInput).toBeTruthy();
+    expect(submitButton).toBeTruthy();
+
+    fireEvent.change(promptInput!, {
+      target: { value: "  Go to the office by 9  " },
+    });
+    fireEvent.click(submitButton!);
+
+    await waitFor(() => {
+      expect(routerPushMock).toHaveBeenCalledWith("/agent/session-1");
+    });
+    expect(
+      window.sessionStorage.getItem("commute-planner:agent-prompt")
+    ).toBe("Go to the office by 9");
+  });
+
+  it("does not store an agent transition prompt for non-agent routes", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({ error: "login required" }, { status: 401 })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { container } = render(<CommuteInput />);
+
+    const promptInput = container.querySelector("input");
+    const submitButton = container.querySelector('button[type="submit"]');
+    expect(promptInput).toBeTruthy();
+    expect(submitButton).toBeTruthy();
+
+    fireEvent.change(promptInput!, {
+      target: { value: "  Go to the office by 9  " },
+    });
+    fireEvent.click(submitButton!);
+
+    await waitFor(() => {
+      expect(routerPushMock).toHaveBeenCalledWith("/login");
+    });
+    expect(
+      window.sessionStorage.getItem("commute-planner:agent-prompt")
+    ).toBeNull();
+  });
+
   it("prioritizes login for unauthenticated agent starts with action hrefs", () => {
     expect(
       getAgentStartResult(401, {
@@ -410,6 +468,47 @@ describe("sample-aligned UI components", () => {
     });
     await screen.findByText("再帮我看看下雨怎么办");
     expect(routerPushMock).not.toHaveBeenCalled();
+  });
+
+  it("renders the initial prompt as a user message bubble on the agent page", async () => {
+    const prompt = "Go to the office by 9";
+    window.sessionStorage.setItem("commute-planner:agent-prompt", prompt);
+    const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
+      if (String(url) === "/api/agent-sessions/session-1") {
+        return Response.json({
+          session: {
+            id: "session-1",
+            tripId: null,
+            status: "completed",
+            prompt,
+            messages: [
+              {
+                id: "message-1",
+                role: "user",
+                content: prompt,
+                createdAt: "2026-06-29T00:00:00.000Z",
+              },
+            ],
+            toolCalls: [],
+          },
+        });
+      }
+
+      return Response.json({ error: "unexpected request" }, { status: 500 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { container } = render(
+      <AgentEventList autoRedirect={false} sessionId="session-1" />
+    );
+
+    await screen.findByText(prompt);
+
+    expect(container.querySelector("[data-agent-user-message]")).toBeTruthy();
+    expect(
+      container.querySelector('[data-agent-transition-message="true"]')
+    ).toBeTruthy();
+    expect(screen.getAllByText(prompt)).toHaveLength(1);
   });
 
   it("redirects completed conversation sessions only after a continued run completes", async () => {
