@@ -455,10 +455,10 @@ describe("scheduler reminder processing", () => {
                   name: "replace_trip_legs",
                   arguments: {
                     tripId: trip.id,
-                    title: "Home-Office",
+                    title: "Updated Home-Office",
                     finalStopName: "Office",
                     targetArriveAt: new Date(
-                      now.getTime() + 80 * 60_000
+                      now.getTime() + 85 * 60_000
                     ).toISOString(),
                     stops: [
                       {
@@ -471,7 +471,7 @@ describe("scheduler reminder processing", () => {
                     legs: [
                       {
                         order: 1,
-                        originName: "Home",
+                        originName: "Updated Home",
                         originLngLat: "121.1,29.1",
                         destinationName: "Office",
                         destinationLngLat: "121.2,29.2",
@@ -541,12 +541,14 @@ describe("scheduler reminder processing", () => {
     expect(sendEmailMock).toHaveBeenCalledWith(
       expect.objectContaining({
         to: "scheduler@example.com",
-        subject: "通勤时间已变化：Home-Office",
+        subject: "通勤时间已变化：Updated Home-Office",
         text: expect.stringContaining("出发时间已更新"),
         html: expect.stringContaining("出发时间已更新"),
       })
     );
     const routeChangeEmail = sendEmailMock.mock.calls[0][0];
+    expect(routeChangeEmail.text).toContain("17:55");
+    expect(routeChangeEmail.html).toContain("17:55");
     expect(routeChangeEmail.text).toContain("Updated transit route");
     expect(routeChangeEmail.text).toContain("40 分钟");
     expect(routeChangeEmail.html).toContain("Updated transit route");

@@ -54,6 +54,7 @@ type EmailTemplateLegInput = {
   destinationName: string | null;
   latestDepartAt: Date | null;
   targetArriveAt: Date | null;
+  trip?: EmailTemplateTripInput;
   selectedCandidate?: {
     title: string;
     routeMinutes: number;
@@ -63,6 +64,11 @@ type EmailTemplateLegInput = {
     title: string;
     order: number;
   }[];
+} | null | undefined;
+type EmailTemplateTripInput = {
+  title: string;
+  targetArriveAt: Date | null;
+  finalStopName: string | null;
 } | null | undefined;
 
 const DEFAULT_ROUTE_CHANGE_THRESHOLD_MINUTES = 3;
@@ -181,17 +187,23 @@ function getTotalMinutes(leg: EmailTemplateLegInput) {
 
 function buildEmailTemplateInput(
   job: DueReminderJob,
-  leg: EmailTemplateLegInput = job.leg
+  leg: EmailTemplateLegInput = job.leg,
+  trip: EmailTemplateTripInput = leg?.trip ?? job.trip
 ): CommuteEmailTemplateInput {
+  const tripTitle = trip?.title ?? job.trip.title;
   const destination =
-    leg?.destinationName ?? job.trip.finalStopName ?? job.trip.title;
+    leg?.destinationName ??
+    trip?.finalStopName ??
+    job.trip.finalStopName ??
+    tripTitle;
   const tripPath = `/trips/${job.tripId}`;
 
   return {
-    tripTitle: job.trip.title,
+    tripTitle,
     destinationName: destination,
     latestDepartAt: leg?.latestDepartAt ?? job.scheduledFor,
-    targetArriveAt: leg?.targetArriveAt ?? job.trip.targetArriveAt,
+    targetArriveAt:
+      leg?.targetArriveAt ?? trip?.targetArriveAt ?? job.trip.targetArriveAt,
     totalMinutes: getTotalMinutes(leg),
     routeTitle: summarizeRouteTitle(leg),
     weatherSummary: "以行程详情为准",
@@ -260,6 +272,13 @@ async function loadCurrentLegForEmail(job: DueReminderJob, legOrder?: number) {
       OR: clauses,
     },
     include: {
+      trip: {
+        select: {
+          title: true,
+          targetArriveAt: true,
+          finalStopName: true,
+        },
+      },
       selectedCandidate: true,
       routeSegments: {
         select: { title: true, order: true },
