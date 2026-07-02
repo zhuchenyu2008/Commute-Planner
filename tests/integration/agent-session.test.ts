@@ -845,6 +845,157 @@ describe("agent planning sessions", () => {
     });
   }, 15000);
 
+  it("completes continuation after a route replacement tool succeeds", async () => {
+    const user = await createUserWithSettings("agent-route-replace-complete");
+    const trip = await createPlannedTrip({
+      userId: user.id,
+      rawPrompt: "Existing route to Longhu.",
+      timezone: "Asia/Shanghai",
+      title: "Home-Longhu",
+      targetArriveAt: new Date("2026-07-03T01:00:00.000Z"),
+      finalStopName: "Longhu",
+      stops: [
+        {
+          order: 1,
+          name: "Longhu",
+          lngLat: "121.2,29.2",
+          targetArriveAt: new Date("2026-07-03T01:00:00.000Z"),
+          kind: "destination",
+        },
+      ],
+      legs: [
+        {
+          order: 1,
+          originName: "Home",
+          originLngLat: "121.1,29.1",
+          destinationName: "Longhu",
+          destinationLngLat: "121.2,29.2",
+          targetArriveAt: new Date("2026-07-03T01:00:00.000Z"),
+          routeMinutes: 30,
+          bufferComponents: [
+            {
+              category: "transfer",
+              label: "Transfer",
+              minutes: 5,
+              reason: "Leave time for transfer.",
+            },
+          ],
+        },
+      ],
+    });
+    const session = await startPlanningSession({
+      userId: user.id,
+      prompt: "Remove the stopover.",
+    });
+    await prisma.agentSession.update({
+      where: { id: session.id },
+      data: { status: "completed", tripId: trip.id },
+    });
+
+    let calls = 0;
+    const chatClient: AgentChatClient = {
+      async complete() {
+        calls += 1;
+
+        if (calls > 1) {
+          throw new Error("runner should complete after route replacement");
+        }
+
+        return {
+          message: {
+            role: "assistant",
+            content: "Replace the route and stop.",
+            toolCalls: [
+              {
+                id: "replace-route",
+                name: "replace_trip_legs",
+                arguments: {
+                  tripId: trip.id,
+                  title: "Home-Office",
+                  targetArriveAt: "2026-07-03T01:00:00.000Z",
+                  finalStopName: "Office",
+                  stops: [
+                    {
+                      order: 1,
+                      name: "Office",
+                      lngLat: "121.3,29.3",
+                      targetArriveAt: "2026-07-03T01:00:00.000Z",
+                      kind: "destination",
+                    },
+                  ],
+                  legs: [
+                    {
+                      order: 1,
+                      originName: "Home",
+                      originLngLat: "121.1,29.1",
+                      destinationName: "Office",
+                      destinationLngLat: "121.3,29.3",
+                      targetArriveAt: "2026-07-03T01:00:00.000Z",
+                      routeMinutes: 20,
+                      bufferMinutes: 5,
+                      totalMinutes: 25,
+                      mode: "transit",
+                      routeTitle: "Transit to Office",
+                      routeRationale: "Direct route after removing stopover.",
+                      segmentTitle: "Home to Office",
+                      segmentDetail: "Direct route.",
+                      segmentSource: "amap",
+                      source: { source: "test-agent" },
+                      bufferComponents: [
+                        {
+                          category: "transfer",
+                          label: "Transfer",
+                          minutes: 5,
+                          reason: "Leave time for transfer.",
+                        },
+                      ],
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        };
+      },
+    };
+
+    const result = await continueAgentSession(
+      {
+        userId: user.id,
+        sessionId: session.id,
+        message: "Cancel the stopover and go direct.",
+      },
+      { amapClient, chatClient }
+    );
+
+    expect(calls).toBe(1);
+    expect(result).toMatchObject({
+      status: "completed",
+      tripId: trip.id,
+    });
+    await expect(
+      prisma.agentSession.findUniqueOrThrow({ where: { id: session.id } })
+    ).resolves.toMatchObject({
+      status: "completed",
+      tripId: trip.id,
+    });
+    await expect(
+      prisma.trip.findUniqueOrThrow({
+        where: { id: trip.id },
+        include: {
+          legs: true,
+          reminderJobs: { where: { status: "scheduled" } },
+        },
+      })
+    ).resolves.toMatchObject({
+      finalStopName: "Office",
+      legs: [expect.objectContaining({ destinationName: "Office" })],
+      reminderJobs: expect.arrayContaining([
+        expect.objectContaining({ kind: "depart_now" }),
+      ]),
+    });
+  });
+
   it("persists an explicit trip id used by continuation route update tools", async () => {
     const user = await createUserWithSettings("agent-explicit-trip");
     const trip = await createPlannedTrip({

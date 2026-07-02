@@ -17,6 +17,10 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { getAgentConversationHref } from "@/lib/app-routes";
 import { prisma } from "@/lib/db";
 import {
+  formatDateTimeInTimeZone,
+  formatTimeInTimeZone,
+} from "@/lib/time-format";
+import {
   formatReminderStatus,
   getMonitoringStatusDisplay,
   getMonitoringSummary,
@@ -27,30 +31,6 @@ type TripPageProps = {
     tripId: string;
   }>;
 };
-
-function formatTime(date?: Date | null) {
-  if (!date) {
-    return "待定";
-  }
-
-  return new Intl.DateTimeFormat("zh-CN", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
-
-function formatDateTime(date?: Date | null) {
-  if (!date) {
-    return "待定";
-  }
-
-  return new Intl.DateTimeFormat("zh-CN", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
 
 function formatReminderKind(kind: string) {
   const labels: Record<string, string> = {
@@ -124,6 +104,7 @@ export default async function TripDetailPage({ params }: TripPageProps) {
     redirect("/history");
   }
 
+  const tripTimeZone = trip.timezone;
   const primaryLeg = trip.legs[0];
   const selectedCandidates = trip.legs.flatMap((leg) => {
     const candidate =
@@ -145,8 +126,12 @@ export default async function TripDetailPage({ params }: TripPageProps) {
     id: leg.id,
     title: `${leg.originName} 到 ${leg.destinationName}`,
     subtitle: [
-      leg.latestDepartAt ? `${formatTime(leg.latestDepartAt)} 前出发` : null,
-      leg.targetArriveAt ? `${formatTime(leg.targetArriveAt)} 前到达` : null,
+      leg.latestDepartAt
+        ? `${formatTimeInTimeZone(leg.latestDepartAt, tripTimeZone)} 前出发`
+        : null,
+      leg.targetArriveAt
+        ? `${formatTimeInTimeZone(leg.targetArriveAt, tripTimeZone)} 前到达`
+        : null,
     ]
       .filter(Boolean)
       .join(" / "),
@@ -216,7 +201,8 @@ export default async function TripDetailPage({ params }: TripPageProps) {
                 {trip.title}
               </h1>
               <p className="mt-2 text-sm text-[#434655]">
-                目标到达 {formatDateTime(trip.targetArriveAt)}
+                目标到达{" "}
+                {formatDateTimeInTimeZone(trip.targetArriveAt, tripTimeZone)}
               </p>
             </div>
             {agentSessionId ? (
@@ -232,23 +218,26 @@ export default async function TripDetailPage({ params }: TripPageProps) {
         </header>
 
         <GlassCard className="p-5">
-          <div className="grid gap-5 md:grid-cols-[1.2fr_0.8fr]">
-            <div className="space-y-4">
+          <div className="grid min-w-0 gap-5 md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+            <div className="min-w-0 space-y-4">
               <div className="flex items-center gap-3">
                 <div className="flex size-12 items-center justify-center rounded-xl bg-[#f2f4f6] text-[#191c1e]">
                   <Clock3 aria-hidden="true" className="size-6" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm font-medium text-[#434655]">
                     最晚出发时间
                   </p>
                   <p className="text-2xl font-bold text-[#191c1e]">
-                    {formatTime(primaryLeg?.latestDepartAt)}
+                    {formatTimeInTimeZone(
+                      primaryLeg?.latestDepartAt,
+                      tripTimeZone
+                    )}
                   </p>
                 </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-[#434655]">
+              <div className="min-w-0">
+                <p className="break-words text-sm font-medium text-[#434655]">
                   {routeTitle ?? "路线方案待定"}
                 </p>
                 <p className="mt-1 text-base font-semibold text-[#191c1e]">
@@ -258,12 +247,12 @@ export default async function TripDetailPage({ params }: TripPageProps) {
                 </p>
               </div>
             </div>
-            <div className="min-h-36 rounded-2xl bg-[linear-gradient(135deg,rgba(219,225,255,0.9),rgba(255,255,255,0.35)),linear-gradient(35deg,transparent_0_38%,rgba(37,99,235,0.45)_38.5%,transparent_40%_100%),linear-gradient(120deg,transparent_0_58%,rgba(195,198,215,0.8)_58.5%,transparent_60%_100%)] p-4">
+            <div className="min-h-36 min-w-0 rounded-2xl bg-[linear-gradient(135deg,rgba(219,225,255,0.9),rgba(255,255,255,0.35)),linear-gradient(35deg,transparent_0_38%,rgba(37,99,235,0.45)_38.5%,transparent_40%_100%),linear-gradient(120deg,transparent_0_58%,rgba(195,198,215,0.8)_58.5%,transparent_60%_100%)] p-4">
               <div className="flex items-center gap-2 text-sm font-bold text-[#191c1e]">
                 <Map aria-hidden="true" className="size-5 text-[#2563eb]" />
                 地图参考
               </div>
-              <p className="mt-10 text-sm font-medium text-[#434655]">
+              <p className="mt-10 break-words text-sm font-medium text-[#434655]">
                 {mapPath.length > 1
                   ? mapPath.join(" -> ")
                   : `${primaryLeg?.originName ?? "出发点"} 到 ${
@@ -293,7 +282,7 @@ export default async function TripDetailPage({ params }: TripPageProps) {
           </div>
         </GlassCard>
 
-        <section className="grid gap-5 md:grid-cols-2">
+        <section className="grid min-w-0 gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <GlassCard className="p-5">
             <div className="flex items-center gap-2">
               <Bell aria-hidden="true" className="size-5 text-[#2563eb]" />
@@ -315,7 +304,10 @@ export default async function TripDetailPage({ params }: TripPageProps) {
                         {formatReminderKind(reminder.kind)}
                       </p>
                       <p className="mt-1 text-xs font-medium text-[#434655]">
-                        {formatDateTime(reminder.scheduledFor)}
+                        {formatDateTimeInTimeZone(
+                          reminder.scheduledFor,
+                          tripTimeZone
+                        )}
                       </p>
                     </div>
                     <span className="rounded-full bg-[#f2f4f6] px-3 py-1 text-xs font-bold text-[#434655]">

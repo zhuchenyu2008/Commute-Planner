@@ -189,18 +189,23 @@ export function SettingsForm({ values }: { values: SettingsValues }) {
     }
 
     setPlaceStatus("正在搜索");
-    const response = await fetch(
-      `/api/places/search?keywords=${encodeURIComponent(keywords)}&city=${encodeURIComponent(defaultCity)}`
-    );
-    const payload = await response.json().catch(() => ({}));
 
-    if (!response.ok) {
-      setPlaceStatus(payload.error ?? "地点搜索失败");
-      return;
+    try {
+      const response = await fetch(
+        `/api/places/search?keywords=${encodeURIComponent(keywords)}&city=${encodeURIComponent(defaultCity)}`
+      );
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setPlaceStatus(payload.error ?? "地点搜索失败");
+        return;
+      }
+
+      setPlaces(Array.isArray(payload.places) ? payload.places : []);
+      setPlaceStatus("");
+    } catch {
+      setPlaceStatus("地点搜索失败");
     }
-
-    setPlaces(Array.isArray(payload.places) ? payload.places : []);
-    setPlaceStatus("");
   }
 
   async function sendTestNotification(channel: "telegram" | "email") {

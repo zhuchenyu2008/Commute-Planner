@@ -7,19 +7,11 @@ import { HistoryDateFilter } from "@/components/history/history-date-filter";
 import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { getBeijingDayRange } from "@/lib/history/day-filter";
+import { formatDateTimeInTimeZone } from "@/lib/time-format";
 import {
   getTripDisplayStatus,
   type TripDisplayTone,
 } from "@/lib/trips/display-status";
-
-function formatDate(date: Date) {
-  return new Intl.DateTimeFormat("zh-CN", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
 
 const statusClasses: Record<TripDisplayTone, string> = {
   danger: "bg-[#ffdad6] text-[#93000a]",
@@ -88,6 +80,7 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
                 status: trip.status,
                 targetArriveAt: trip.targetArriveAt,
               });
+              const tripTimeZone = trip.timezone;
 
               return (
                 <Link className="block" href={`/trips/${trip.id}`} key={trip.id}>
@@ -113,7 +106,18 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
                     <div className="mt-4 flex flex-wrap items-center gap-3 text-sm font-medium text-[#434655]">
                       <span className="flex items-center gap-1">
                         <Clock3 aria-hidden="true" className="size-4" />
-                        {formatDate(trip.createdAt)}
+                        目标到达：
+                        {formatDateTimeInTimeZone(
+                          trip.targetArriveAt,
+                          tripTimeZone
+                        )}
+                      </span>
+                      <span>
+                        创建于：
+                        {formatDateTimeInTimeZone(
+                          trip.createdAt,
+                          tripTimeZone
+                        )}
                       </span>
                       {typeof minutes === "number" ? (
                         <span>{minutes} 分钟</span>

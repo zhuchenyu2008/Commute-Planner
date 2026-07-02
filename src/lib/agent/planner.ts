@@ -1063,6 +1063,24 @@ function stringifyToolResult(result: unknown) {
   });
 }
 
+const CONTINUATION_COMPLETION_TOOL_NAMES = new Set([
+  "replace_trip_stops",
+  "replace_trip_legs",
+  "cancel_trip_monitoring",
+]);
+
+function shouldCompleteContinuationAfterTools(
+  toolCalls: AgentChatToolCall[],
+  requireCreateTrip: boolean
+) {
+  return (
+    !requireCreateTrip &&
+    toolCalls.some((toolCall) =>
+      CONTINUATION_COMPLETION_TOOL_NAMES.has(toolCall.name)
+    )
+  );
+}
+
 async function runConversationAttempt(input: {
   sessionId: string;
   context: ToolExecutionContext;
@@ -1145,6 +1163,21 @@ async function runConversationAttempt(input: {
           };
         }
       }
+    }
+
+    if (shouldCompleteContinuationAfterTools(toolCalls, input.requireCreateTrip)) {
+      const summary = "AI 已更新当前行程。";
+      await createAssistantMessage({
+        sessionId: input.sessionId,
+        signal: input.signal,
+        content: summary,
+        metadata: { tripId: latestTripId },
+      });
+
+      return {
+        tripId: latestTripId,
+        summary,
+      };
     }
   }
 }

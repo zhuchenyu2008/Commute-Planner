@@ -117,6 +117,13 @@ describe("Docker configuration", () => {
     );
   });
 
+  it("copies public assets into the runtime image so static fonts are served", () => {
+    const dockerfile = readFileSync("Dockerfile", "utf8");
+    const runnerStage = readDockerStage(dockerfile, "runner");
+
+    expect(runnerStage).toContain("COPY --from=builder /app/public ./public");
+  });
+
   it("installs OpenSSL where Prisma commands and client run", () => {
     const dockerfile = readFileSync("Dockerfile", "utf8");
     const builderStage = readDockerStage(dockerfile, "builder");

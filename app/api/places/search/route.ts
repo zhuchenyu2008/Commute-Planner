@@ -17,7 +17,16 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "请输入地点关键词" }, { status: 400 });
   }
 
-  const places = await createAmapClient().searchPoi({ keywords, city });
+  try {
+    const places = await createAmapClient().searchPoi({ keywords, city });
 
-  return NextResponse.json({ places });
+    return NextResponse.json({ places });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "unknown error";
+
+    return NextResponse.json(
+      { error: `地点搜索失败：${detail}` },
+      { status: 502 }
+    );
+  }
 }

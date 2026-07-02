@@ -1265,6 +1265,137 @@ describe("sample-aligned UI components", () => {
     await screen.findByText("Telegram 测试未发送：缺少 TELEGRAM_BOT_TOKEN");
   });
 
+  it("blocks empty place searches in the settings form without calling the API", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <SettingsForm
+        values={{
+          defaultCity: "宁波",
+          timezone: "Asia/Shanghai",
+          originName: "",
+          originLngLat: "",
+          routePreference: "balanced",
+          telegramChatId: "",
+          emailRecipient: "",
+        }}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "搜索" }));
+
+    await screen.findByText("请输入地点关键词");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("shows readable place-search failures in the settings form", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({ error: "地点搜索失败：AMap network down" }, { status: 502 })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <SettingsForm
+        values={{
+          defaultCity: "宁波",
+          timezone: "Asia/Shanghai",
+          originName: "",
+          originLngLat: "",
+          routePreference: "balanced",
+          telegramChatId: "",
+          emailRecipient: "",
+        }}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText("搜索默认出发点"), {
+      target: { value: "外事学校" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "搜索" }));
+
+    await screen.findByText("地点搜索失败：AMap network down");
+  });
+
+  it("recovers from place-search network errors in the settings form", async () => {
+    const fetchMock = vi.fn(async () => {
+      throw new Error("network down");
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <SettingsForm
+        values={{
+          defaultCity: "宁波",
+          timezone: "Asia/Shanghai",
+          originName: "",
+          originLngLat: "",
+          routePreference: "balanced",
+          telegramChatId: "",
+          emailRecipient: "",
+        }}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText("搜索默认出发点"), {
+      target: { value: "外事学校" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "搜索" }));
+
+    await screen.findByText("地点搜索失败");
+  });
+
+  it("disables notification test buttons and shows loading only for the active channel", async () => {
+    let resolveRequest: (response: Response) => void = () => undefined;
+    const fetchMock = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveRequest = resolve;
+        })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <SettingsForm
+        values={{
+          defaultCity: "宁波",
+          timezone: "Asia/Shanghai",
+          originName: "",
+          originLngLat: "",
+          routePreference: "balanced",
+          telegramChatId: "telegram-chat",
+          emailRecipient: "user@example.com",
+        }}
+      />
+    );
+
+    const telegramButton = screen.getByRole("button", { name: "发送测试消息" });
+    const emailButton = screen.getByRole("button", { name: "发送测试邮件" });
+
+    fireEvent.click(telegramButton);
+
+    await waitFor(() => {
+      expect((telegramButton as HTMLButtonElement).disabled).toBe(true);
+      expect((emailButton as HTMLButtonElement).disabled).toBe(true);
+    });
+    expect(telegramButton.querySelector(".animate-spin")).toBeTruthy();
+    expect(emailButton.querySelector(".animate-spin")).toBeNull();
+
+    resolveRequest(
+      Response.json({
+        result: {
+          status: "skipped",
+          recipient: "telegram-chat",
+          error: "缺少 TELEGRAM_BOT_TOKEN",
+        },
+      })
+    );
+
+    await screen.findByText("Telegram 测试未发送：缺少 TELEGRAM_BOT_TOKEN");
+    expect((telegramButton as HTMLButtonElement).disabled).toBe(false);
+    expect((emailButton as HTMLButtonElement).disabled).toBe(false);
+  });
+
   it("searches places with the edited default city and submits the selected origin", async () => {
     const fetchMock = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
       const requestUrl = String(url);

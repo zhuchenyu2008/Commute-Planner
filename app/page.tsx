@@ -125,8 +125,8 @@ export default async function HomePage() {
           <CommuteInput />
         </section>
 
-        <section className="grid gap-4 md:grid-cols-[1.3fr_1fr]">
-          <Link className="block" href={latestTripHref}>
+        <section className="grid min-w-0 gap-4 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+          <Link className="block min-w-0" href={latestTripHref}>
             <GlassCard className="p-6 transition hover:bg-white/85">
               <div className="flex items-center justify-between gap-4">
                 <span
@@ -148,20 +148,20 @@ export default async function HomePage() {
                   {latestMinutes ? ` · 预计 ${latestMinutes} 分钟` : ""}
                 </p>
               </div>
-              <div className="mt-6 flex items-center justify-between border-t border-[#c3c6d7]/50 pt-4">
-                <div className="flex items-center gap-2 text-sm font-semibold text-[#434655]">
+              <div className="mt-6 flex min-w-0 items-center justify-between gap-3 border-t border-[#c3c6d7]/50 pt-4">
+                <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-[#434655]">
                   <Navigation aria-hidden="true" className="size-4" />
                   最近一个行程
                 </div>
-                <span className="text-sm font-bold text-[#2563eb]">
+                <span className="shrink-0 text-sm font-bold text-[#2563eb]">
                   查看详情
                 </span>
               </div>
             </GlassCard>
           </Link>
 
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-1">
-            <Link className="block" href="/history">
+          <div className="grid min-w-0 grid-cols-2 gap-4 md:grid-cols-1">
+            <Link className="block min-w-0" href="/history">
               <GlassCard className="h-full p-4 transition hover:bg-white/85">
                 <div className="flex items-center justify-between gap-2">
                   <p className="flex items-center gap-2 text-sm font-bold text-[#191c1e]">
@@ -205,7 +205,7 @@ export default async function HomePage() {
                 </div>
               </GlassCard>
             </Link>
-            <Link className="block" href="/memories">
+            <Link className="block min-w-0" href="/memories">
               <GlassCard className="h-full p-4 transition hover:bg-white/85">
                 <div className="flex items-center justify-between gap-2">
                   <p className="flex items-center gap-2 text-sm font-bold text-[#191c1e]">

@@ -144,6 +144,51 @@ describe("settings API", () => {
     ]);
   });
 
+  it("rejects empty place search keywords before calling AMap", async () => {
+    const { GET } = await import("@app/api/places/search/route");
+    const user = await prisma.user.create({
+      data: {
+        email: `place-search-empty-${Date.now()}@example.com`,
+        name: "Empty Place Search User",
+        passwordHash: "hash",
+      },
+      include: { settings: true },
+    });
+    getCurrentUserMock.mockResolvedValue(user);
+
+    const response = await GET(
+      new Request("http://localhost/api/places/search?keywords=%20%20&city=宁波")
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error).toBe("请输入地点关键词");
+    expect(createAmapClientMock).not.toHaveBeenCalled();
+  });
+
+  it("returns a stable JSON error when AMap place search fails", async () => {
+    const { GET } = await import("@app/api/places/search/route");
+    const user = await prisma.user.create({
+      data: {
+        email: `place-search-failure-${Date.now()}@example.com`,
+        name: "Place Search Failure User",
+        passwordHash: "hash",
+      },
+      include: { settings: true },
+    });
+    getCurrentUserMock.mockResolvedValue(user);
+    searchPoiMock.mockRejectedValue(new Error("AMap network down"));
+
+    const response = await GET(
+      new Request("http://localhost/api/places/search?keywords=外事学校&city=宁波")
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(502);
+    expect(body.error).toContain("地点搜索失败");
+    expect(body.error).toContain("AMap network down");
+  });
+
   it("rejects unauthenticated place searches", async () => {
     const { GET } = await import("@app/api/places/search/route");
     getCurrentUserMock.mockResolvedValue(null);
@@ -274,6 +319,80 @@ describe("settings API", () => {
     );
 
     expect(response.status).toBe(400);
+  });
+
+  it.each([
+    ["empty default city", { defaultCity: "" }, "默认城市不能为空"],
+    ["unsupported timezone", { timezone: "Mars/Base" }, "不支持该时区"],
+    ["unsupported route preference", { routePreference: "teleport" }, "不支持该通勤方式倾向"],
+    ["origin name without lngLat", { originName: "家", originLngLat: "" }, "默认出发点必须从候选地点中选择"],
+    ["lngLat without origin name", { originName: "", originLngLat: "121.1,29.1" }, "默认出发点必须从候选地点中选择"],
+    ["invalid lngLat format", { originName: "家", originLngLat: "abc" }, "默认出发点坐标无效"],
+    ["longitude outside range", { originName: "家", originLngLat: "181,29.1" }, "默认出发点坐标无效"],
+    ["latitude outside range", { originName: "家", originLngLat: "121.1,91" }, "默认出发点坐标无效"],
+    ["invalid email", { emailRecipient: "not-email" }, "邮件接收人格式无效"],
+    ["zero threshold", { routeChangeThresholdMinutes: 0 }, "路线变化提醒阈值必须是 1 到 120 分钟之间的整数"],
+    ["too large threshold", { routeChangeThresholdMinutes: 121 }, "路线变化提醒阈值必须是 1 到 120 分钟之间的整数"],
+    ["decimal threshold", { routeChangeThresholdMinutes: 1.5 }, "路线变化提醒阈值必须是 1 到 120 分钟之间的整数"],
+    ["non-numeric string threshold", { routeChangeThresholdMinutes: "later" }, "路线变化提醒阈值必须是 1 到 120 分钟之间的整数"],
+    ["blank threshold", { routeChangeThresholdMinutes: "" }, "路线变化提醒阈值必须是 1 到 120 分钟之间的整数"],
+  ])("RUS-017 rejects %s with details and preserves existing settings", async (_name, patch, expectedDetail) => {
+    const { PUT } = await import("@app/api/settings/route");
+    const user = await prisma.user.create({
+      data: {
+        email: `settings-rus-017-${_name.replace(/\W+/g, "-")}-${Date.now()}@example.com`,
+        name: "RUS-017 User",
+        passwordHash: "hash",
+        settings: {
+          create: {
+            defaultCity: "宁波",
+            timezone: "Asia/Shanghai",
+            originName: "家",
+            originLngLat: "121.5230315924,29.8652491273",
+            routePreference: "balanced",
+            emailRecipient: "valid@example.com",
+            routeChangeThresholdMinutes: 3,
+          },
+        },
+      },
+      include: { settings: true },
+    });
+    getCurrentUserMock.mockResolvedValue(user);
+
+    const response = await PUT(
+      new Request("http://localhost/api/settings", {
+        method: "PUT",
+        body: JSON.stringify({
+          defaultCity: "宁波",
+          timezone: "Asia/Shanghai",
+          originName: "家",
+          originLngLat: "121.5230315924,29.8652491273",
+          routePreference: "balanced",
+          emailRecipient: "valid@example.com",
+          routeChangeThresholdMinutes: 3,
+          ...patch,
+        }),
+      })
+    );
+    const body = await response.json();
+    const stored = await prisma.userSettings.findUniqueOrThrow({
+      where: { userId: user.id },
+    });
+
+    expect(response.status).toBe(400);
+    expect(body).toMatchObject({
+      error: "设置无效",
+      details: expect.arrayContaining([expectedDetail]),
+    });
+    expect(stored).toMatchObject({
+      defaultCity: "宁波",
+      timezone: "Asia/Shanghai",
+      originName: "家",
+      originLngLat: "121.5230315924,29.8652491273",
+      routePreference: "balanced",
+      emailRecipient: "valid@example.com",
+      routeChangeThresholdMinutes: 3,
+    });
   });
 
   it("allows saving planner settings without an origin and requires origin name and coordinates as a pair", async () => {
@@ -467,6 +586,109 @@ describe("settings API", () => {
       recipient: "telegram-chat",
       error: "缺少 TELEGRAM_BOT_TOKEN",
     });
+  });
+
+  it("returns detailed failed reasons for Telegram test notifications without retrying other channels", async () => {
+    const { POST } = await import("@app/api/settings/test-notification/route");
+    const user = await prisma.user.create({
+      data: {
+        email: `settings-test-telegram-failed-${Date.now()}@example.com`,
+        name: "Failed Telegram Notification User",
+        passwordHash: "hash",
+      },
+      include: { settings: true },
+    });
+    getCurrentUserMock.mockResolvedValue(user);
+    sendTelegramMock.mockResolvedValue({
+      status: "failed",
+      recipient: "telegram-chat",
+      error: "Telegram 400: Bad Request",
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/settings/test-notification", {
+        method: "POST",
+        body: JSON.stringify({
+          channel: "telegram",
+          telegramChatId: "telegram-chat",
+        }),
+      })
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.result).toMatchObject({
+      status: "failed",
+      recipient: "telegram-chat",
+      error: "Telegram 400: Bad Request",
+    });
+    expect(sendEmailMock).not.toHaveBeenCalled();
+  });
+
+  it("validates invalid email test recipients before SMTP is touched", async () => {
+    const { POST } = await import("@app/api/settings/test-notification/route");
+    const user = await prisma.user.create({
+      data: {
+        email: `settings-test-email-invalid-${Date.now()}@example.com`,
+        name: "Invalid Email Notification User",
+        passwordHash: "hash",
+      },
+      include: { settings: true },
+    });
+    getCurrentUserMock.mockResolvedValue(user);
+
+    const response = await POST(
+      new Request("http://localhost/api/settings/test-notification", {
+        method: "POST",
+        body: JSON.stringify({
+          channel: "email",
+          emailRecipient: "not-email",
+        }),
+      })
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(payload.error).toBe("邮件接收人格式无效");
+    expect(sendEmailMock).not.toHaveBeenCalled();
+    expect(sendTelegramMock).not.toHaveBeenCalled();
+  });
+
+  it("returns detailed skipped reasons for email test notifications without SMTP config", async () => {
+    const { POST } = await import("@app/api/settings/test-notification/route");
+    const user = await prisma.user.create({
+      data: {
+        email: `settings-test-email-skipped-${Date.now()}@example.com`,
+        name: "Skipped Email Notification User",
+        passwordHash: "hash",
+      },
+      include: { settings: true },
+    });
+    getCurrentUserMock.mockResolvedValue(user);
+    sendEmailMock.mockResolvedValue({
+      status: "skipped",
+      recipient: "user@example.com",
+      error: "缺少 SMTP_HOST",
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/settings/test-notification", {
+        method: "POST",
+        body: JSON.stringify({
+          channel: "email",
+          emailRecipient: "user@example.com",
+        }),
+      })
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.result).toMatchObject({
+      status: "skipped",
+      recipient: "user@example.com",
+      error: "缺少 SMTP_HOST",
+    });
+    expect(sendTelegramMock).not.toHaveBeenCalled();
   });
 
   it("sends email test notifications to the supplied recipient", async () => {

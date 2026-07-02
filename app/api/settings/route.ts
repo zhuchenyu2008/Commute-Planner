@@ -61,7 +61,7 @@ function readRouteChangeThresholdMinutes(
   const numeric =
     typeof raw === "number" || typeof raw === "string" ? Number(raw) : NaN;
 
-  return Number.isFinite(numeric) ? Math.round(numeric) : NaN;
+  return Number.isFinite(numeric) && Number.isInteger(numeric) ? numeric : NaN;
 }
 
 function isValidLngLat(value: string) {

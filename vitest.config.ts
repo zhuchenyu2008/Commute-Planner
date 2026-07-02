@@ -10,6 +10,7 @@ export default defineConfig({
       DATABASE_URL: process.env.DATABASE_URL ?? "file:./unit-test.db"
     },
     environment: "node",
+    fileParallelism: false,
     globals: false,
     include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"]
   },

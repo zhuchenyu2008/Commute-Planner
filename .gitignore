@@ -9,4 +9,6 @@ tsconfig.tsbuildinfo
 *.db
 *.db-journal
 data/
+debug.log
+test-results/
 .worktrees/

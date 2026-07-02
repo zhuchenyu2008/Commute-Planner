@@ -15,6 +15,7 @@ import {
 } from "@/lib/notifications/email-templates";
 import { buildAmapLink } from "@/lib/notifications/map-links";
 import {
+  buildNotificationDedupeKey,
   type NotificationSendStatus,
   writeNotificationLog,
 } from "@/lib/notifications/log";
@@ -119,6 +120,29 @@ function resolveJobStatus(
   if (statuses.includes("failed")) return "failed";
   if (statuses.includes("sent")) return "sent";
   return "skipped";
+}
+
+function normalizeNotificationStatus(status: string): NotificationSendStatus {
+  if (status === "sent" || status === "failed" || status === "skipped") {
+    return status;
+  }
+
+  return "skipped";
+}
+
+async function getLoggedNotificationStatus(input: {
+  tripId: string;
+  legId?: string | null;
+  channel: string;
+  kind: string;
+  scheduledFor: Date;
+}) {
+  const existing = await prisma.notificationLog.findUnique({
+    where: { dedupeKey: buildNotificationDedupeKey(input) },
+    select: { status: true },
+  });
+
+  return existing ? normalizeNotificationStatus(existing.status) : null;
 }
 
 function getSessionIdForRecheck(job: DueReminderJob) {
@@ -383,8 +407,21 @@ async function deliverReminderNotification(input: {
       : input.notificationLegId;
 
   return Promise.all([
-    sendTelegram({ text: input.content, chatId: telegramChatId }).then(
-      async (result) => {
+    (async () => {
+      const loggedStatus = await getLoggedNotificationStatus({
+        tripId: input.job.tripId,
+        legId: notificationLegId,
+        channel: "telegram",
+        kind: notificationKind,
+        scheduledFor: input.job.scheduledFor,
+      });
+
+      if (loggedStatus) return loggedStatus;
+
+      const result = await sendTelegram({
+        text: input.content,
+        chatId: telegramChatId,
+      });
         await writeNotificationLog({
           tripId: input.job.tripId,
           legId: notificationLegId,
@@ -398,15 +435,25 @@ async function deliverReminderNotification(input: {
         });
 
         return result.status;
-      }
-    ),
-    sendEmail({
-      to: emailRecipient,
-      subject: input.email?.subject ?? input.subject,
-      text: input.email?.text ?? input.content,
-      html: input.email?.html,
-      attachments: input.email?.attachments,
-    }).then(async (result) => {
+    })(),
+    (async () => {
+      const loggedStatus = await getLoggedNotificationStatus({
+        tripId: input.job.tripId,
+        legId: notificationLegId,
+        channel: "email",
+        kind: notificationKind,
+        scheduledFor: input.job.scheduledFor,
+      });
+
+      if (loggedStatus) return loggedStatus;
+
+      const result = await sendEmail({
+        to: emailRecipient,
+        subject: input.email?.subject ?? input.subject,
+        text: input.email?.text ?? input.content,
+        html: input.email?.html,
+        attachments: input.email?.attachments,
+      });
       await writeNotificationLog({
         tripId: input.job.tripId,
         legId: notificationLegId,
@@ -420,7 +467,7 @@ async function deliverReminderNotification(input: {
       });
 
       return result.status;
-    }),
+    })(),
   ]);
 }
 

@@ -80,7 +80,7 @@ export function RouteTimeline({
                 ) : null}
               </div>
             ) : null}
-            <div className="grid grid-cols-[40px_1fr] gap-x-2">
+            <div className="grid grid-cols-[40px_minmax(0,1fr)] gap-x-2">
               {visibleSegments.map((segment, index) => {
                 const isLast = index === visibleSegments.length - 1;
 
@@ -99,8 +99,8 @@ export function RouteTimeline({
                       )}
                     </div>
                     <div className="min-w-0 py-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <p className="break-words text-base font-semibold text-[#191c1e]">
+                      <div className="flex min-w-0 items-start justify-between gap-3">
+                        <p className="min-w-0 break-all text-base font-semibold text-[#191c1e]">
                           {segment.title}
                         </p>
                         <span className="shrink-0 rounded-full bg-[#dae2fd] px-2.5 py-1 text-xs font-bold text-[#3f465c]">
