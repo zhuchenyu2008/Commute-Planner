@@ -3,7 +3,14 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import React from "react";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import RootLayout from "@app/layout";
@@ -22,6 +29,7 @@ import { CurrentLocationLabel } from "@/components/home/current-location-label";
 import { BufferList } from "@/components/trips/buffer-list";
 import { RouteTimeline } from "@/components/trips/route-timeline";
 import { LoginForm } from "@app/login/login-form";
+import { credits } from "@app/settings/credits";
 import { ProjectAttribution } from "@app/settings/project-attribution";
 import SettingsPage from "@app/settings/page";
 import { SettingsForm } from "@app/settings/settings-form";
@@ -868,15 +876,26 @@ describe("sample-aligned UI components", () => {
     await screen.findByText("无法加载智能体会话。");
   });
 
-  it("loads Inter from the root layout", () => {
+  it("keeps font loading local instead of relying on Google Fonts at runtime", () => {
     const html = renderToStaticMarkup(
       <RootLayout>
         <main>App</main>
       </RootLayout>
     );
+    const css = readFileSync(join(process.cwd(), "app/globals.css"), "utf8");
 
-    expect(html).toContain("fonts.googleapis.com");
-    expect(html).toContain("family=Inter");
+    expect(html).not.toContain("fonts.googleapis.com");
+    expect(html).not.toContain("fonts.gstatic.com");
+    expect(css).toContain('font-family: "Inter"');
+    expect(css).toContain('font-family: "Stack Sans Notch"');
+    expect(css).toContain('font-family: "Zhi Mang Xing"');
+    expect(css).toContain('font-family: "Caveat"');
+    expect(css).toContain('url("/fonts/inter-400.ttf")');
+    expect(css).toContain('url("/fonts/stack-sans-notch-400.ttf")');
+    expect(css).toContain('url("/fonts/zhi-mang-xing-400.ttf")');
+    expect(css).toContain('url("/fonts/caveat-400.ttf")');
+    expect(css).not.toContain("fonts.googleapis.com");
+    expect(css).not.toContain("fonts.gstatic.com");
   });
 
   it("renders project attribution and repository link on settings page", async () => {
@@ -905,11 +924,54 @@ describe("sample-aligned UI components", () => {
     fireEvent.click(screen.getByRole("button", { name: "致谢名单" }));
 
     expect(screen.getByRole("dialog", { name: "致谢名单" })).toBeTruthy();
-    expect(screen.getByText(/特别感谢/)).toBeTruthy();
-    expect(screen.getByText("ZhuChenyu")).toBeTruthy();
+    expect(screen.queryByText(/特别感谢/)).toBeNull();
+    const [firstCredit] = credits;
+    expect(firstCredit).toBeDefined();
+    expect(screen.getByText(firstCredit!.name)).toBeTruthy();
+    const handwriting = screen.getByTestId("credits-handwriting");
+    expect(handwriting.getAttribute("class")).toContain("font-handwriting");
+    const englishName = within(handwriting).getByText(firstCredit!.name);
+    expect(englishName.getAttribute("class")).toContain("font-handwriting-en");
+    expect(englishName.getAttribute("class")).toContain("text-[0.86em]");
     expect(
-      screen.getByTestId("credits-handwriting").getAttribute("class")
-    ).toContain("font-handwriting");
+      within(handwriting).getByText("项目的开发辅助").getAttribute("class")
+    ).toContain("font-handwriting-cn");
+    expect(
+      within(handwriting).getByText("项目的开发辅助").getAttribute("class")
+    ).toContain("text-[1.18em]");
+  });
+
+  it("uses the selected Chinese and English handwritten font stacks for credits", () => {
+    const css = readFileSync(join(process.cwd(), "app/globals.css"), "utf8");
+
+    expect(css).toMatch(
+      /\.font-handwriting\s*\{[^}]*font-family:\s*"Stack Sans Notch",\s*"Zhi Mang Xing"/s
+    );
+    expect(css).toMatch(
+      /\.font-handwriting-cn\s*\{[^}]*font-family:\s*"Zhi Mang Xing"/s
+    );
+    expect(css).toMatch(
+      /\.font-handwriting-en\s*\{[^}]*font-family:\s*"Stack Sans Notch",\s*"Caveat"/s
+    );
+    expect(css).not.toMatch(
+      /\.font-handwriting\s*\{[^}]*"Liu Jian Mao Cao"/s
+    );
+  });
+
+  it("opens the credits dialog at the top of the viewport with scroll containment", () => {
+    render(<ProjectAttribution />);
+
+    fireEvent.click(screen.getByRole("button", { name: "致谢名单" }));
+
+    const dialog = screen.getByRole("dialog", { name: "致谢名单" });
+    const dialogClass = dialog.getAttribute("class") ?? "";
+    const panelClass = dialog.firstElementChild?.getAttribute("class") ?? "";
+
+    expect(dialog.parentElement).toBe(document.body);
+    expect(dialogClass).toContain("items-start");
+    expect(dialogClass).toContain("overflow-y-auto");
+    expect(panelClass).toContain("max-h-[calc(100dvh-3rem)]");
+    expect(panelClass).toContain("overflow-y-auto");
   });
 
   it("renders login and settings form controls with visible field frames", () => {

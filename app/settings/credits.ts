@@ -3,12 +3,25 @@ export type CreditEntry = {
   note: string;
 };
 
-export const creditsIntro =
-  "特别感谢一路参与测试、反馈、启发和支持 AI Commute 的朋友们。";
-
 export const credits: CreditEntry[] = [
   {
-    name: "ZhuChenyu",
-    note: "项目设计、开发与维护",
+    name: "CODEX",
+    note: "项目的开发辅助",
+  },
+  {
+    name: "STITCH",
+    note: "项目的视觉设计",
+  },
+  {
+    name: "GPT-IMAGE-2",
+    note: "项目LOGO设计",
+  },
+  {
+    name: "Linux Do",
+    note: "一个优秀的平台，提供了很多有价值的资源",
+  },
+  {
+    name: "果儿",
+    note: "给予的陪伴和鼓励",
   },
 ];

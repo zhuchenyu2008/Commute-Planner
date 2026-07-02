@@ -2,6 +2,110 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/inter-400.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/inter-500.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/inter-600.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/inter-700.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Stack Sans Notch";
+  font-style: normal;
+  font-weight: 200;
+  font-display: swap;
+  src: url("/fonts/stack-sans-notch-200.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Stack Sans Notch";
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url("/fonts/stack-sans-notch-300.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Stack Sans Notch";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/stack-sans-notch-400.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Stack Sans Notch";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/stack-sans-notch-500.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Stack Sans Notch";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/stack-sans-notch-600.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Stack Sans Notch";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/stack-sans-notch-700.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Zhi Mang Xing";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/zhi-mang-xing-400.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Caveat";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/caveat-400.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Caveat";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/caveat-600.ttf") format("truetype");
+}
+
 :root {
   color-scheme: light;
 }
@@ -16,8 +120,16 @@ body {
 }
 
 .font-handwriting {
-  font-family: "LXGW WenKai", "KaiTi", "STKaiti", "FangSong", "Microsoft YaHei",
-    cursive;
+  font-family: "Stack Sans Notch", "Zhi Mang Xing", "Caveat", "STXingkai",
+    "KaiTi", cursive;
+}
+
+.font-handwriting-cn {
+  font-family: "Zhi Mang Xing", "STXingkai", "KaiTi", cursive;
+}
+
+.font-handwriting-en {
+  font-family: "Stack Sans Notch", "Caveat", cursive;
 }
 
 .glass-card {
