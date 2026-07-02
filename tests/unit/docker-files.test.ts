@@ -12,6 +12,19 @@ function readComposeServiceBlock(compose: string, serviceName: string) {
   return lines.slice(start, end === -1 ? undefined : end).join("\n");
 }
 
+function readDockerStage(dockerfile: string, stageName: string) {
+  const lines = dockerfile.split(/\r?\n/);
+  const start = lines.findIndex((line) =>
+    line.endsWith(` AS ${stageName}`)
+  );
+
+  expect(start).toBeGreaterThanOrEqual(0);
+
+  const end = lines.findIndex((line, index) => index > start && line.startsWith("FROM "));
+
+  return lines.slice(start, end === -1 ? undefined : end).join("\n");
+}
+
 describe("Docker configuration", () => {
   it("defines web and scheduler services with persisted SQLite data", () => {
     const compose = readFileSync("docker-compose.yml", "utf8");
@@ -91,5 +104,22 @@ describe("Docker configuration", () => {
     expect(telegramPollScript.indexOf("loadEnvConfig(process.cwd())")).toBeLessThan(
       telegramPollScript.indexOf('import("@/lib/telegram/polling")')
     );
+  });
+
+  it("copies tsconfig into the runtime image so worker aliases resolve", () => {
+    const dockerfile = readFileSync("Dockerfile", "utf8");
+
+    expect(dockerfile).toContain(
+      "COPY --from=builder /app/tsconfig.json ./tsconfig.json"
+    );
+  });
+
+  it("installs OpenSSL where Prisma commands and client run", () => {
+    const dockerfile = readFileSync("Dockerfile", "utf8");
+    const builderStage = readDockerStage(dockerfile, "builder");
+    const runnerStage = readDockerStage(dockerfile, "runner");
+
+    expect(builderStage).toMatch(/apt-get install\b.*\bopenssl\b/);
+    expect(runnerStage).toMatch(/apt-get install\b.*\bopenssl\b/);
   });
 });
