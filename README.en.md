@@ -24,8 +24,6 @@
   <img alt="Docker" src="https://img.shields.io/badge/Docker-ready-2496ED">
 </p>
 
-> The default README is in Chinese. This English version mirrors the same setup and usage notes. The logo uses `output/readme-assets/logo.png`.
-
 ## Overview
 
 AI Commute is an intelligent planning app for personal commute workflows. It uses Next.js, Prisma/SQLite, AMap services, and an OpenAI-compatible planning runner to connect place search, route options, weather references, trip reminders, Telegram conversations, and email notifications into one complete commute flow.
@@ -43,12 +41,9 @@ It is useful when you want to:
 - **Multi-leg trips and buffers**: Supports route legs, weather/traffic buffers, latest departure time, and reminder scheduling.
 - **User-level settings**: Saves default city, default origin, commute preferences, Telegram Chat ID, email recipient, and route-change thresholds.
 - **Notification loop**: Includes a scheduler, Telegram worker, email templates, and notification delivery logs.
-- **Project attribution**: The settings page shows the author and maintainable acknowledgements.
 - **Deployment friendly**: Supports one-command local startup and Docker Compose for the web app, scheduler, and Telegram worker.
 
 ## Screenshots
-
-> Screenshots are generated with sanitized demo data. They do not include any real personal location, route, or memory data.
 
 | Home | History | Memories |
 | --- | --- | --- |
@@ -218,6 +213,8 @@ Core configuration:
 - `SCHEDULER_TICK_SECRET`: Shared secret that protects the scheduler tick API.
 - `TELEGRAM_BOT_TOKEN`: Telegram bot token.
 
+> AMap API console: https://console.amap.com/dev/index. It includes a monthly free quota, which is more than enough for personal use. This project limits concurrency to 3.
+
 ## Testing
 
 Unit and integration tests:
@@ -244,8 +241,12 @@ Playwright E2E:
 npm run test:e2e -- tests/e2e/commute-flow.spec.ts --reporter=line --workers=1
 ```
 
-## Project Info
+---
 
-- Author: ZhuChenyu
-- README: [中文](README.md) / English
-- License: AGPL-3.0
+## Acknowledgements
+
+- CodeX
+- GPT-Image-2
+- stitch
+- Linux Do
+- 啃果干儿^-^

@@ -24,7 +24,6 @@
   <img alt="Docker" src="https://img.shields.io/badge/Docker-ready-2496ED">
 </p>
 
-> 默认 README 为中文，英文版见 [`README.en.md`](README.en.md)。Logo 使用 `output/readme-assets/logo.png`。
 
 ## 项目简介
 
@@ -43,12 +42,9 @@ AI Commute 是一个面向个人通勤场景的智能规划应用。它使用 Ne
 - **多段行程与缓冲**：支持路线分段、天气/交通缓冲、最晚出发时间和提醒计划。
 - **用户级设置**：保存默认城市、默认出发点、通勤偏好、Telegram Chat ID、邮件接收人和路线变化阈值。
 - **通知闭环**：内置 scheduler、Telegram worker、邮件模板和通知发送日志。
-- **项目署名**：设置页展示作者署名和可维护的致谢名单。
 - **部署友好**：支持本机一键启动，也支持 Docker Compose 同时运行 Web、scheduler 和 Telegram worker。
 
 ## 界面截图
-
-> 页面截图使用脱敏演示数据生成，不包含个人真实定位、路线或记忆内容。
 
 | 首页 | 历史 | 记忆 |
 | --- | --- | --- |
@@ -218,6 +214,8 @@ npm run email:test-route-change
 - `SCHEDULER_TICK_SECRET`：保护 scheduler tick API 的 shared secret。
 - `TELEGRAM_BOT_TOKEN`：Telegram bot token。
 
+> 高德api网址：https://console.amap.com/dev/index  每月有免费配额，完全足够个人使用，本项目已限制并发为3。
+
 ## 测试
 
 单元测试和集成测试：
@@ -244,8 +242,12 @@ Playwright E2E：
 npm run test:e2e -- tests/e2e/commute-flow.spec.ts --reporter=line --workers=1
 ```
 
-## 项目信息
+---
 
-- 作者：ZhuChenyu
-- README：中文 / [English](README.en.md)
-- 许可证：AGPL-3.0
+## 致谢
+
+- CodeX
+- GPT-Image-2
+- stitch
+- Linux Do
+- 啃果干儿^-^
